@@ -1,0 +1,5 @@
+streamlit
+langchain
+tiktoken
+ebooklib
+beautifulsoup4
