@@ -53,10 +53,10 @@ input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"])
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
 
 with col1:
-    chunk_size = st.number_input("Chunk Size", min_value=1, value=1900)
+    chunk_size = st.number_input("Chunk Size", min_value=1, value=1950)
 
 with col2:
-    chunk_overlap = st.number_input("Chunk Overlap", min_value=1, max_value=chunk_size - 1, value=50)
+    chunk_overlap = st.number_input("Chunk Overlap", min_value=1, max_value=chunk_size - 1, value=40)
     if chunk_overlap >= chunk_size:
         st.warning("Chunk Overlap should be less than Chunk Size!")
 
