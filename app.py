@@ -46,8 +46,8 @@ You can either manually paste text or upload an EPUB file. When uploading an EPU
 """
 )
 
-# ---------- Input Method Selection (default set to EPUB) ----------
-input_method = st.radio("Input Method", ["Upload EPUB", "Manual Input"], index=0)
+# ---------- Input Method Selection ----------
+input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"])
 
 # ---------- Common Text Splitter Configuration ----------
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
@@ -174,23 +174,23 @@ if st.button("Split Text"):
             splits = splitter.split_text(doc)
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
-                # HTML snippet for a scrollable code block with header containing the Copy button.
+                st.text_area(f"Split {idx}", chunk_with_prefix, height=200)
+                # Create a copy-to-clipboard button using a hidden textarea and JavaScript.
                 copy_button_html = f"""
-                <div style="border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin-top: 10px;">
-                    <div style="background: #f5f5f5; padding: 4px 8px; text-align: right;">
-                        <button onclick="copyToClipboard_{idx}()" style="border: none; background: transparent; cursor: pointer; font-size: 12px;">Copy</button>
-                    </div>
-                    <pre id="code_block_{idx}" style="margin: 0; padding: 8px; font-family: monospace; background: #f6f8fa; overflow: auto; max-height: 300px; white-space: pre;">{chunk_with_prefix}</pre>
+                <div>
+                    <textarea id="text_to_copy_{idx}" style="opacity:0; position:absolute; pointer-events: none;">{chunk_with_prefix}</textarea>
+                    <button onclick="copyToClipboard_{idx}()" style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">
+                        Copy to Clipboard
+                    </button>
                 </div>
                 <script>
                     function copyToClipboard_{idx}() {{
-                        const code = document.getElementById("code_block_{idx}").innerText;
-                        navigator.clipboard.writeText(code).then(() => {{
-                            console.log("Code copied to clipboard.");
-                        }}, (err) => {{
-                            console.error("Failed to copy text: ", err);
-                        }});
+                        var copyText = document.getElementById("text_to_copy_{idx}");
+                        copyText.style.display = "block";
+                        copyText.select();
+                        document.execCommand("copy");
+                        copyText.style.display = "none";
                     }}
                 </script>
                 """
-                st.markdown(copy_button_html, unsafe_allow_html=True)
+                components.html(copy_button_html, height=100)
