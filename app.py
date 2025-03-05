@@ -5,24 +5,33 @@ import tiktoken
 import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
-from io import BytesIO
+import tempfile
+import os
 
 def extract_chapters(epub_content):
-    """Extracts chapters from EPUB content bytes."""
-    book = epub.read_epub(BytesIO(epub_content))
+    """Extracts chapters from EPUB content bytes using temporary file."""
     chapters = []
-    for item in book.get_items():
-        if item.get_type() == epub.EpubHtml or item.get_name().endswith('.xhtml'):
-            try:
-                content = item.get_content().decode('utf-8')
-            except Exception:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(epub_content)
+        tmp_file_name = tmp_file.name
+    
+    try:
+        book = epub.read_epub(tmp_file_name)
+        for item in book.get_items():
+            if item.get_type() == epub.EpubHtml or item.get_name().endswith('.xhtml'):
                 try:
-                    content = item.get_content().decode('gb18030')
+                    content = item.get_content().decode('utf-8')
                 except Exception:
-                    content = item.get_content().decode('latin-1', errors='ignore')
-            soup = BeautifulSoup(content, 'html.parser')
-            text = soup.get_text(separator="\n")
-            chapters.append(text)
+                    try:
+                        content = item.get_content().decode('gb18030')
+                    except Exception:
+                        content = item.get_content().decode('latin-1', errors='ignore')
+                soup = BeautifulSoup(content, 'html.parser')
+                text = soup.get_text(separator="\n")
+                chapters.append(text)
+    finally:
+        os.unlink(tmp_file_name)  # Clean up temporary file
+    
     return chapters
 
 # Initialize session state variables
@@ -83,7 +92,7 @@ elif input_method == "Upload EPUB":
                 st.rerun()
         
         # Chapter Selection and Display
-        chapter_numbers = list(range(1, len(st.session_state.chapters)+1))
+        chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
         selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
                                      index=st.session_state.chapter_index)
         st.session_state.chapter_index = selected_chapter - 1
