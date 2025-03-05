@@ -6,9 +6,8 @@ import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
 
-# ---------- Helper Function ----------
 def extract_chapters(epub_file_path):
-    """Extracts chapters from an EPUB file by decoding and parsing XHTML content."""
+    """Extracts chapters from an EPUB file."""
     book = epub.read_epub(epub_file_path)
     chapters = []
     for item in book.get_items():
@@ -25,10 +24,10 @@ def extract_chapters(epub_file_path):
             chapters.append(text)
     return chapters
 
-# ---------- Input Method Selection ----------
+# Input Method Selection
 input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"], index=1)
 
-# ---------- Text Splitter Configuration ----------
+# Configuration Columns
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
 with col1:
     chunk_size = st.number_input("Chunk Size", min_value=1, value=1950)
@@ -40,19 +39,17 @@ with col3:
     length_function_choice = st.selectbox("Length Function", ["Characters", "Tokens"], index=0)
 with col4:
     splitter_choices = ["Character", "RecursiveCharacter"] + [str(v) for v in Language]
-    splitter_choice = st.selectbox("Select a Text Splitter", splitter_choices, index=0)
+    splitter_choice = st.selectbox("Text Splitter", splitter_choices, index=0)
 
-# ---------- Length Function Setup ----------
+# Length Function Setup
 if length_function_choice == "Characters":
     length_function = len
-    length_function_str = code_snippets.CHARACTER_LENGTH
 elif length_function_choice == "Tokens":
     enc = tiktoken.get_encoding("cl100k_base")
     def length_function(text: str) -> int:
         return len(enc.encode(text))
-    length_function_str = code_snippets.TOKEN_LENGTH
 
-# ---------- Document Input Section ----------
+# Document Input Section
 doc = ""
 if input_method == "Manual Input":
     doc = st.text_area("Paste your text here:")
@@ -68,6 +65,7 @@ elif input_method == "Upload EPUB":
             if "chapter_index" not in st.session_state:
                 st.session_state.chapter_index = 0
 
+            # Chapter Selection and Display
             chapter_numbers = list(range(1, len(chapters)+1))
             selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
                                          index=st.session_state.chapter_index)
@@ -77,21 +75,16 @@ elif input_method == "Upload EPUB":
             doc = chapters[st.session_state.chapter_index]
             st.text_area("Chapter Text", doc, height=300)
 
-            # Chapter Navigation
-            col_prev, col_next = st.columns(2)
-            with col_prev:
-                if st.button("◀ Previous") and st.session_state.chapter_index > 0:
+            # Responsive Navigation Buttons
+            nav_col1, nav_col2 = st.columns([1, 1])
+            with nav_col1:
+                if st.button("◀ Prev", use_container_width=True) and st.session_state.chapter_index > 0:
                     st.session_state.chapter_index -= 1
-            with col_next:
-                if st.button("Next ▶") and st.session_state.chapter_index < len(chapters)-1:
+            with nav_col2:
+                if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(chapters)-1:
                     st.session_state.chapter_index += 1
 
-# ---------- Reset Functionality ----------
-if st.button("Reset Session"):
-    st.session_state.clear()
-    st.rerun()
-
-# ---------- Text Processing Section ----------
+# Text Processing Section
 prefix = "translate following text from chinese to english\n"
 if st.button("Split Text"):
     if not doc:
@@ -139,6 +132,7 @@ if st.button("Split Text"):
                             cursor: pointer;
                             transition: all 0.3s ease;
                             margin: 5px 0;
+                            width: 100%;
                         "
                         onmouseover="this.style.backgroundColor='#d52f5b'"
                         onmouseout="this.style.backgroundColor='#f63366'">
