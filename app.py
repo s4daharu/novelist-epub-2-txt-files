@@ -2,11 +2,11 @@ import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
 import code_snippets as code_snippets
 import tiktoken
+import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
 
 # ---------- Caching Functions for Performance ----------
-
 @st.cache_data(show_spinner=False)
 def extract_chapters(epub_file_path: str):
     """
@@ -166,21 +166,28 @@ if st.button("Split Text"):
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
                 st.text_area(f"Split {idx}", chunk_with_prefix, height=200)
+                # Build full HTML for the copy-to-clipboard block.
                 copy_button_html = f"""
-                <div>
-                    <textarea id="text_to_copy_{idx}" style="opacity:0; position:absolute; pointer-events:none;">{chunk_with_prefix}</textarea>
-                    <button onclick="copyToClipboard_{idx}()" style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">
-                        Copy to Clipboard
-                    </button>
-                </div>
-                <script>
-                    function copyToClipboard_{idx}() {{
-                        var copyText = document.getElementById("text_to_copy_{idx}");
-                        copyText.style.display = "block";
-                        copyText.select();
-                        document.execCommand("copy");
-                        copyText.style.display = "none";
-                    }}
-                </script>
+                <html>
+                  <head>
+                    <script>
+                      function copyToClipboard_{idx}() {{
+                        var copyText = document.getElementById("code_block_{idx}").innerText;
+                        navigator.clipboard.writeText(copyText).then(function() {{
+                          console.log("Copied!");
+                        }});
+                      }}
+                    </script>
+                  </head>
+                  <body style="margin:0; padding:0;">
+                    <div style="border: 1px solid #ddd; border-radius: 6px; overflow: hidden;">
+                      <div style="background: #f5f5f5; padding: 4px 8px; text-align: right;">
+                        <button onclick="copyToClipboard_{idx}()" style="border: none; background: transparent; cursor: pointer; font-size: 12px;">Copy to Clipboard</button>
+                      </div>
+                      <pre id="code_block_{idx}" style="margin:0; padding:8px; font-family: monospace; background: #f6f8fa; overflow:auto; max-height:300px; white-space: pre;">{chunk_with_prefix}</pre>
+                    </div>
+                  </body>
+                </html>
                 """
-                st.markdown(copy_button_html, unsafe_allow_html=True)
+                # Render the HTML using components.html
+                components.html(copy_button_html, height=350)
