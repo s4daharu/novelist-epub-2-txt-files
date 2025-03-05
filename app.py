@@ -139,10 +139,10 @@ if st.button("Split Text"):
 
         if splitter:
             splits = splitter.split_text(doc)
-            split_chunks = [prefix + s for s in splits]
+            # Ensure each split is a string.
+            split_chunks = [prefix + str(s) for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
                 st.markdown(f"**Split {idx}:**")
-                # Display each chunk in a scrollable container with fixed height.
                 st.markdown(
                     f'<div style="max-height:200px; overflow-y:scroll; border:1px solid #ccc; padding:10px;">'
                     f'<pre><code class="python">{chunk_with_prefix}</code></pre></div>',
