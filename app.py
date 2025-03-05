@@ -62,8 +62,6 @@ elif length_function_choice == "Tokens":
 else:
     st.error("Invalid Length Function selection.")
 
-# ---------- (Removed Code Snippet Display) ----------
-
 # ---------- Input Section ----------
 doc = ""
 if input_method == "Manual Input":
@@ -82,15 +80,6 @@ elif input_method == "Upload EPUB":
             if "chapter_index" not in st.session_state:
                 st.session_state.chapter_index = 0
 
-            # Navigation buttons for chapters.
-            col_prev, col_next = st.columns(2)
-            with col_prev:
-                if st.button("Previous Chapter") and st.session_state.chapter_index > 0:
-                    st.session_state.chapter_index -= 1
-            with col_next:
-                if st.button("Next Chapter") and st.session_state.chapter_index < len(chapters) - 1:
-                    st.session_state.chapter_index += 1
-
             # Select box for choosing a chapter number.
             chapter_numbers = list(range(1, len(chapters) + 1))
             selected_chapter = st.selectbox("Select Chapter Number", chapter_numbers, index=st.session_state.chapter_index)
@@ -99,6 +88,15 @@ elif input_method == "Upload EPUB":
             st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
             doc = chapters[st.session_state.chapter_index]
             st.text_area("Chapter Text", doc, height=300)
+
+            # Navigation buttons moved to bottom
+            col_prev, col_next = st.columns(2)
+            with col_prev:
+                if st.button("Previous Chapter") and st.session_state.chapter_index > 0:
+                    st.session_state.chapter_index -= 1
+            with col_next:
+                if st.button("Next Chapter") and st.session_state.chapter_index < len(chapters) - 1:
+                    st.session_state.chapter_index += 1
 
 # ---------- Translation Prefix ----------
 prefix = "translate following text from chinese to english\n"
