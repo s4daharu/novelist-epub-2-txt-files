@@ -174,13 +174,13 @@ if st.button("Split Text"):
             splits = splitter.split_text(doc)
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
-                # HTML snippet for a code block with a header containing the Copy button.
+                # HTML snippet for a scrollable code block with header containing the Copy button.
                 copy_button_html = f"""
-                <div style="border: 1px solid #e1e4e8; border-radius: 6px; overflow: hidden; margin-top: 10px;">
-                    <div style="background-color: #f6f8fa; padding: 8px; display: flex; justify-content: flex-end;">
-                        <button onclick="copyToClipboard_{idx}()" style="padding: 4px 8px; font-size: 12px; cursor: pointer;">Copy</button>
+                <div style="border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin-top: 10px;">
+                    <div style="background: #f5f5f5; padding: 4px 8px; text-align: right;">
+                        <button onclick="copyToClipboard_{idx}()" style="border: none; background: transparent; cursor: pointer; font-size: 12px;">Copy</button>
                     </div>
-                    <pre id="code_block_{idx}" style="margin: 0; padding: 16px; font-family: monospace; background-color: #f6f8fa; white-space: pre-wrap;">{chunk_with_prefix}</pre>
+                    <pre id="code_block_{idx}" style="margin: 0; padding: 8px; font-family: monospace; background: #f6f8fa; overflow: auto; max-height: 300px; white-space: pre;">{chunk_with_prefix}</pre>
                 </div>
                 <script>
                     function copyToClipboard_{idx}() {{
