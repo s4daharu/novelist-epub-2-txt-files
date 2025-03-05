@@ -83,7 +83,7 @@ elif input_method == "Upload EPUB":
                 st.rerun()
         
         # Chapter Selection and Display
-        chapter_numbers = list(range(1, len(st.session_state.chapters)+1)
+        chapter_numbers = list(range(1, len(st.session_state.chapters)+1))
         selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
                                      index=st.session_state.chapter_index)
         st.session_state.chapter_index = selected_chapter - 1
