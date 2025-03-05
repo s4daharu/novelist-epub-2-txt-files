@@ -18,12 +18,12 @@ def extract_chapters(epub_file_path):
         # Check for items of type EpubHtml or items with a .xhtml filename.
         if item.get_type() == epub.EpubHtml or item.get_name().endswith('.xhtml'):
             try:
-                content = item.get_body_content().decode('utf-8')
+                content = item.get_content().decode('utf-8')
             except Exception:
                 try:
-                    content = item.get_body_content().decode('gb18030')
+                    content = item.get_content().decode('gb18030')
                 except Exception:
-                    content = item.get_body_content().decode('latin-1', errors='ignore')
+                    content = item.get_content().decode('latin-1', errors='ignore')
             # Use BeautifulSoup to strip HTML tags and extract text.
             soup = BeautifulSoup(content, 'html.parser')
             text = soup.get_text(separator="\n")
@@ -103,9 +103,8 @@ prefix = "translate following text from chinese to english\n"
 
 # ---------- Reset Button ----------
 if st.button("Reset"):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.experimental_rerun()
+    st.session_state.clear()
+    st.rerun()
 
 # ---------- Text Splitting & Processing ----------
 if st.button("Split Text"):
@@ -142,22 +141,13 @@ if st.button("Split Text"):
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
                 st.text_area(f"Split {idx}", chunk_with_prefix, height=200)
-                # Create a copy-to-clipboard button using a hidden textarea and JavaScript.
+                # Modern clipboard implementation
                 copy_button_html = f"""
                 <div>
-                    <textarea id="text_to_copy_{idx}" style="opacity:0; position:absolute; pointer-events: none;">{chunk_with_prefix}</textarea>
-                    <button onclick="copyToClipboard_{idx}()" style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">
+                    <button onclick="navigator.clipboard.writeText(`{chunk_with_prefix}`)"
+                            style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">
                         Copy to Clipboard
                     </button>
                 </div>
-                <script>
-                    function copyToClipboard_{idx}() {{
-                        var copyText = document.getElementById("text_to_copy_{idx}");
-                        copyText.style.display = "block";
-                        copyText.select();
-                        document.execCommand("copy");
-                        copyText.style.display = "none";
-                    }}
-                </script>
                 """
-                components.html(copy_button_html, height=100)
+                components.html(copy_button_html, height=50)
