@@ -139,13 +139,29 @@ if st.button("Split Text"):
 
         if splitter:
             splits = splitter.split_text(doc)
-            # Ensure each split is a string.
+            # Convert each split to a string and add the translation prefix.
             split_chunks = [prefix + str(s) for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
                 st.markdown(f"**Split {idx}:**")
-                st.markdown(
+                # Create a unique ID for the hidden textarea and button.
+                text_id = f"text_to_copy_{idx}"
+                # Display each chunk inside a scrollable container.
+                chunk_html = (
                     f'<div style="max-height:200px; overflow-y:scroll; border:1px solid #ccc; padding:10px;">'
-                    f'<pre><code class="python">{chunk_with_prefix}</code></pre></div>',
+                    f'<pre><code class="python">{chunk_with_prefix}</code></pre></div>'
+                )
+                st.markdown(chunk_html, unsafe_allow_html=True)
+                # Hidden textarea to hold the chunk text.
+                st.markdown(
+                    f'<textarea id="{text_id}" style="opacity:0; position:absolute; pointer-events: none;">{chunk_with_prefix}</textarea>',
                     unsafe_allow_html=True
                 )
+                # Copy button using JavaScript.
+                copy_button = (
+                    f'<button onclick="var copyText = document.getElementById(\'{text_id}\');'
+                    'copyText.select(); document.execCommand(\'copy\');" '
+                    'style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">'
+                    'Copy Text</button>'
+                )
+                st.markdown(copy_button, unsafe_allow_html=True)
                 st.markdown("---")
