@@ -2,7 +2,6 @@ import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
 import code_snippets as code_snippets
 import tiktoken
-import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
 
@@ -23,13 +22,11 @@ def extract_chapters(epub_file_path):
                     content = item.get_body_content().decode('gb18030')
                 except Exception:
                     content = item.get_body_content().decode('latin-1', errors='ignore')
-            soup = BeautifulSoup(content, 'html.parser')
-            text = soup.get_text(separator="\n")
-            chapters.append(text)
+            chapters.append(BeautifulSoup(content, 'html.parser').get_text(separator="\n"))
     return chapters
 
-# ---------- Input Method Selection ----------
-input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"])
+# ---------- Input Method Selection (default to EPUB) ----------
+input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"], index=1)
 
 # ---------- Common Text Splitter Configuration ----------
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
@@ -75,7 +72,7 @@ elif "Language." in splitter_choice:
 else:
     st.error("Invalid Text Splitter selection.")
 
-# Display code snippet with syntax highlighting
+# Display the template code snippet with syntax highlighting
 st.code(import_text, language="python")
 
 # ---------- Input Section ----------
@@ -103,6 +100,12 @@ elif input_method == "Upload EPUB":
 
 # ---------- Translation Prefix ----------
 prefix = "translate following text from chinese to english\n"
+
+# ---------- Reset Button ----------
+if st.button("Reset"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.experimental_rerun()
 
 # ---------- Text Splitting & Processing ----------
 if st.button("Split Text"):
@@ -138,4 +141,11 @@ if st.button("Split Text"):
             splits = splitter.split_text(doc)
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
-                st.code(chunk_with_prefix, language="python")
+                st.markdown(f"**Split {idx}:**")
+                # Display each chunk in a scrollable container with fixed height.
+                st.markdown(
+                    f'<div style="max-height:200px; overflow-y:scroll; border:1px solid #ccc; padding:10px;">'
+                    f'<pre><code class="python">{chunk_with_prefix}</code></pre></div>',
+                    unsafe_allow_html=True
+                )
+                st.markdown("---")
