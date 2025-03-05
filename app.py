@@ -5,10 +5,11 @@ import tiktoken
 import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
+from io import BytesIO
 
-def extract_chapters(epub_file_path):
-    """Extracts chapters from an EPUB file."""
-    book = epub.read_epub(epub_file_path)
+def extract_chapters(epub_content):
+    """Extracts chapters from EPUB content bytes."""
+    book = epub.read_epub(BytesIO(epub_content))
     chapters = []
     for item in book.get_items():
         if item.get_type() == epub.EpubHtml or item.get_name().endswith('.xhtml'):
@@ -23,6 +24,14 @@ def extract_chapters(epub_file_path):
             text = soup.get_text(separator="\n")
             chapters.append(text)
     return chapters
+
+# Initialize session state variables
+if 'chapter_index' not in st.session_state:
+    st.session_state.chapter_index = 0
+if 'uploaded_epub' not in st.session_state:
+    st.session_state.uploaded_epub = None
+if 'chapters' not in st.session_state:
+    st.session_state.chapters = []
 
 # Input Method Selection
 input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"], index=1)
@@ -55,34 +64,42 @@ if input_method == "Manual Input":
     doc = st.text_area("Paste your text here:")
 elif input_method == "Upload EPUB":
     uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
+    
+    # Store uploaded file in session state
     if uploaded_file:
-        with open("temp.epub", "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        chapters = extract_chapters("temp.epub")
-        
-        if chapters:
-            st.success(f"Found {len(chapters)} chapters")
-            if "chapter_index" not in st.session_state:
+        st.session_state.uploaded_epub = uploaded_file.read()
+        st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
+    
+    if st.session_state.chapters:
+        # Clear session button
+        clear_col1, clear_col2 = st.columns([3, 1])
+        with clear_col1:
+            st.success(f"Loaded {len(st.session_state.chapters)} chapters")
+        with clear_col2:
+            if st.button("🚮 Clear EPUB"):
+                st.session_state.uploaded_epub = None
+                st.session_state.chapters = []
                 st.session_state.chapter_index = 0
+                st.rerun()
+        
+        # Chapter Selection and Display
+        chapter_numbers = list(range(1, len(st.session_state.chapters)+1)
+        selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
+                                     index=st.session_state.chapter_index)
+        st.session_state.chapter_index = selected_chapter - 1
 
-            # Chapter Selection and Display
-            chapter_numbers = list(range(1, len(chapters)+1))
-            selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
-                                         index=st.session_state.chapter_index)
-            st.session_state.chapter_index = selected_chapter - 1
+        st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
+        doc = st.session_state.chapters[st.session_state.chapter_index]
+        st.text_area("Chapter Text", doc, height=300)
 
-            st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
-            doc = chapters[st.session_state.chapter_index]
-            st.text_area("Chapter Text", doc, height=300)
-
-            # Responsive Navigation Buttons
-            nav_col1, nav_col2 = st.columns([1, 1])
-            with nav_col1:
-                if st.button("◀ Prev", use_container_width=True) and st.session_state.chapter_index > 0:
-                    st.session_state.chapter_index -= 1
-            with nav_col2:
-                if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(chapters)-1:
-                    st.session_state.chapter_index += 1
+        # Responsive Navigation Buttons
+        nav_col1, nav_col2 = st.columns([1, 1])
+        with nav_col1:
+            if st.button("◀ Prev", use_container_width=True) and st.session_state.chapter_index > 0:
+                st.session_state.chapter_index -= 1
+        with nav_col2:
+            if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
+                st.session_state.chapter_index += 1
 
 # Text Processing Section
 prefix = "translate following text from chinese to english\n"
