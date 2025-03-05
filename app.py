@@ -2,7 +2,6 @@ import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
 import code_snippets as code_snippets
 import tiktoken
-import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
 
@@ -30,7 +29,6 @@ def extract_chapters(epub_file_path: str):
             chapters.append(text)
     return chapters
 
-# Optionally cache the tiktoken encoding function if using tokens
 @st.cache_data(show_spinner=False)
 def get_encoded_length(text: str):
     enc = tiktoken.get_encoding("cl100k_base")
@@ -74,18 +72,15 @@ with col4:
     splitter_choices = ["Character", "RecursiveCharacter"] + [str(v) for v in Language]
     splitter_choice = st.selectbox("Select a Text Splitter", splitter_choices, index=0)
 
-# Determine the length function
 if length_function_choice == "Characters":
     length_function = len
     length_function_str = code_snippets.CHARACTER_LENGTH
 elif length_function_choice == "Tokens":
-    # Use caching for encoding if available.
     length_function = get_encoded_length
     length_function_str = code_snippets.TOKEN_LENGTH
 else:
     st.error("Invalid Length Function selection.")
 
-# Build the import snippet only once.
 if splitter_choice == "Character":
     import_text = code_snippets.CHARACTER.format(
         chunk_size=chunk_size, chunk_overlap=chunk_overlap, length_function=length_function_str
@@ -141,7 +136,6 @@ if st.button("Split Text"):
     if not doc:
         st.error("No text provided. Please paste text or upload an EPUB file.")
     else:
-        # Select the appropriate splitter.
         if splitter_choice == "Character":
             splitter = CharacterTextSplitter(
                 separator="\n\n",
@@ -172,10 +166,9 @@ if st.button("Split Text"):
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
                 st.text_area(f"Split {idx}", chunk_with_prefix, height=200)
-                # Create a copy-to-clipboard button using a hidden textarea and JavaScript.
                 copy_button_html = f"""
                 <div>
-                    <textarea id="text_to_copy_{idx}" style="opacity:0; position:absolute; pointer-events: none;">{chunk_with_prefix}</textarea>
+                    <textarea id="text_to_copy_{idx}" style="opacity:0; position:absolute; pointer-events:none;">{chunk_with_prefix}</textarea>
                     <button onclick="copyToClipboard_{idx}()" style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">
                         Copy to Clipboard
                     </button>
@@ -190,4 +183,4 @@ if st.button("Split Text"):
                     }}
                 </script>
                 """
-                components.html(copy_button_html, height=100)
+                st.markdown(copy_button_html, unsafe_allow_html=True)
