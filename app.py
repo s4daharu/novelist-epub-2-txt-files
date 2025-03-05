@@ -46,8 +46,8 @@ You can either manually paste text or upload an EPUB file. When uploading an EPU
 """
 )
 
-# ---------- Input Method Selection ----------
-input_method = st.radio("Input Method", ["Manual Input", "Upload EPUB"])
+# ---------- Input Method Selection (default set to EPUB) ----------
+input_method = st.radio("Input Method", ["Upload EPUB", "Manual Input"], index=0)
 
 # ---------- Common Text Splitter Configuration ----------
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
@@ -174,14 +174,13 @@ if st.button("Split Text"):
             splits = splitter.split_text(doc)
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
-                # Updated copy-to-clipboard code block with a styled code snippet UI.
+                # HTML snippet for a code block with a header containing the Copy button.
                 copy_button_html = f"""
-                <div style="position: relative; margin-top: 10px; border: 1px solid #e1e4e8; border-radius: 6px; background-color: #f6f8fa; padding: 16px;">
-                    <pre id="code_block_{idx}" style="margin: 0; font-family: monospace; white-space: pre-wrap;">{chunk_with_prefix}</pre>
-                    <button onclick="copyToClipboard_{idx}()" 
-                            style="position: absolute; top: 8px; right: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
-                        Copy
-                    </button>
+                <div style="border: 1px solid #e1e4e8; border-radius: 6px; overflow: hidden; margin-top: 10px;">
+                    <div style="background-color: #f6f8fa; padding: 8px; display: flex; justify-content: flex-end;">
+                        <button onclick="copyToClipboard_{idx}()" style="padding: 4px 8px; font-size: 12px; cursor: pointer;">Copy</button>
+                    </div>
+                    <pre id="code_block_{idx}" style="margin: 0; padding: 16px; font-family: monospace; background-color: #f6f8fa; white-space: pre-wrap;">{chunk_with_prefix}</pre>
                 </div>
                 <script>
                     function copyToClipboard_{idx}() {{
