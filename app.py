@@ -1,6 +1,5 @@
 import streamlit as st
-from langchain.text_splitter 
-import (RecursiveCharacterTextSplitter,CharacterTextSplitter, Language)
+from langchain.text_splitter import (RecursiveCharacterTextSplitter,CharacterTextSplitter, Language)
 import tiktoken
 import tempfile
 import os
