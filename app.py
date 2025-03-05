@@ -174,23 +174,24 @@ if st.button("Split Text"):
             splits = splitter.split_text(doc)
             split_chunks = [prefix + s for s in splits]
             for idx, chunk_with_prefix in enumerate(split_chunks, start=1):
-                st.text_area(f"Split {idx}", chunk_with_prefix, height=200)
-                # Create a copy-to-clipboard button using a hidden textarea and JavaScript.
+                # Updated copy-to-clipboard code block with a styled code snippet UI.
                 copy_button_html = f"""
-                <div>
-                    <textarea id="text_to_copy_{idx}" style="opacity:0; position:absolute; pointer-events: none;">{chunk_with_prefix}</textarea>
-                    <button onclick="copyToClipboard_{idx}()" style="padding:8px 12px; font-size:14px; cursor:pointer; margin-top:10px;">
-                        Copy to Clipboard
+                <div style="position: relative; margin-top: 10px; border: 1px solid #e1e4e8; border-radius: 6px; background-color: #f6f8fa; padding: 16px;">
+                    <pre id="code_block_{idx}" style="margin: 0; font-family: monospace; white-space: pre-wrap;">{chunk_with_prefix}</pre>
+                    <button onclick="copyToClipboard_{idx}()" 
+                            style="position: absolute; top: 8px; right: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
+                        Copy
                     </button>
                 </div>
                 <script>
                     function copyToClipboard_{idx}() {{
-                        var copyText = document.getElementById("text_to_copy_{idx}");
-                        copyText.style.display = "block";
-                        copyText.select();
-                        document.execCommand("copy");
-                        copyText.style.display = "none";
+                        const code = document.getElementById("code_block_{idx}").innerText;
+                        navigator.clipboard.writeText(code).then(() => {{
+                            console.log("Code copied to clipboard.");
+                        }}, (err) => {{
+                            console.error("Failed to copy text: ", err);
+                        }});
                     }}
                 </script>
                 """
-                components.html(copy_button_html, height=100)
+                st.markdown(copy_button_html, unsafe_allow_html=True)
