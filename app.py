@@ -99,16 +99,25 @@ elif input_method == "Upload EPUB":
 
         st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
         doc = st.session_state.chapters[st.session_state.chapter_index]
-        st.text_area("Chapter Text", doc, height=300)
+        
+        # Chapter text with unique key based on chapter index
+        st.text_area("Chapter Text", 
+                   value=doc,
+                   height=300,
+                   key=f"chapter_text_{st.session_state.chapter_index}")
 
-        # Responsive Navigation Buttons
+        # Responsive Navigation Buttons with forced rerun
         nav_col1, nav_col2 = st.columns([1, 1])
         with nav_col1:
-            if st.button("◀ Prev", use_container_width=True) and st.session_state.chapter_index > 0:
-                st.session_state.chapter_index -= 1
+            if st.button("◀ Previous", use_container_width=True):
+                if st.session_state.chapter_index > 0:
+                    st.session_state.chapter_index -= 1
+                    st.rerun()
         with nav_col2:
-            if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
-                st.session_state.chapter_index += 1
+            if st.button("Next ▶", use_container_width=True):
+                if st.session_state.chapter_index < len(st.session_state.chapters)-1:
+                    st.session_state.chapter_index += 1
+                    st.rerun()
 
 # Text Processing Section
 prefix = "translate following text from chinese to english\n"
@@ -143,7 +152,13 @@ if st.button("Split Text"):
             split_chunks = [prefix + s for s in splits]
             
             for idx, chunk in enumerate(split_chunks, 1):
-                st.text_area(f"Chunk {idx}", chunk, height=200)
+                # Text area with unique key based on chapter and chunk index
+                st.text_area(f"Chunk {idx}", 
+                           value=chunk,
+                           height=200,
+                           key=f"chunk_{st.session_state.chapter_index}_{idx}")
+                
+                # Copy button with consistent styling
                 components.html(f"""
                 <div>
                     <button onclick="navigator.clipboard.writeText(`{chunk}`)"
