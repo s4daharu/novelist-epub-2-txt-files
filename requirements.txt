@@ -3,4 +3,5 @@ langchain>=0.0.330
 tiktoken>=0.5.1
 ebooklib>=0.17.1
 beautifulsoup4>=4.12.2
-python-dotenv>=1.0.0
+chardet>=5.2.0
+concurrent-futures>=3.0.5
