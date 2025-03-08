@@ -1,7 +1,10 @@
+# app.py
 import streamlit as st
-from io import BytesIO
+import tempfile
+import os
 import chardet
 import tiktoken
+from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from ebooklib import epub
 from bs4 import BeautifulSoup
@@ -10,7 +13,7 @@ import time
 # Initialize expensive resources once
 enc = tiktoken.get_encoding("cl100k_base")
 
-# Cached EPUB processing
+# Cached EPUB processing with temp files
 @st.cache_data(max_entries=3, show_spinner=False)
 def process_epub(uploaded_content):
     def process_item(item):
@@ -24,10 +27,18 @@ def process_epub(uploaded_content):
                 return ""
         return ""
     
-    book = epub.read_epub(BytesIO(uploaded_content))
-    with ThreadPoolExecutor() as executor:
-        chapters = list(executor.map(process_item, book.get_items()))
-    return [ch for ch in chapters if ch.strip()]
+    # Use temp file for ebooklib compatibility
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(uploaded_content)
+        tmp_path = tmp_file.name
+    
+    try:
+        book = epub.read_epub(tmp_path)
+        with ThreadPoolExecutor() as executor:
+            chapters = list(executor.map(process_item, book.get_items()))
+        return [ch for ch in chapters if ch.strip()]
+    finally:
+        os.unlink(tmp_path)  # Cleanup temp file
 
 # Session state initialization
 if 'chapters' not in st.session_state:
