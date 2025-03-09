@@ -1,4 +1,4 @@
-import streamliimport streamlit as st
+import streamlit as st
 from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
     CharacterTextSplitter,
