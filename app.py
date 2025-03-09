@@ -9,7 +9,7 @@ import tempfile
 import os
 
 def extract_chapters(epub_content):
-    """Extracts chapters from EPUB content bytes using temporary file."""
+    """Extracts chapters from EPUB content bytes using a temporary file."""
     chapters = []
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(epub_content)
@@ -26,7 +26,6 @@ def extract_chapters(epub_content):
                         content = item.get_content().decode('gb18030')
                     except Exception:
                         content = item.get_content().decode('latin-1', errors='ignore')
-                from bs4 import BeautifulSoup
                 soup = BeautifulSoup(content, 'html.parser')
                 text = soup.get_text(separator="\n")
                 chapters.append(text)
@@ -43,39 +42,29 @@ if 'uploaded_epub' not in st.session_state:
 if 'chapters' not in st.session_state:
     st.session_state.chapters = []
 
-# --------------------------------------------
-# Instead of a radio to choose input method, we directly use EPUB upload.
-# The "Manual Input" UI remains in the code (for potential future use)
-# but is not displayed.
-# --------------------------------------------
-input_method = "Upload EPUB"
+# -------------------------
+# Hard coded configuration
+# -------------------------
+CHUNK_SIZE = 1950
+CHUNK_OVERLAP = 40
+LENGTH_FUNCTION_CHOICE = "Characters"  # Options: "Characters" or "Tokens"
+SPLITTER_CHOICE = "Character"           # Options: "Character", "RecursiveCharacter", or e.g. "Language.English"
+PREFIX = "translate following text from chinese to english\n"
 
-# Configuration Columns
-col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-with col1:
-    chunk_size = st.number_input("Chunk Size", min_value=1, value=1950)
-with col2:
-    chunk_overlap = st.number_input("Chunk Overlap", min_value=1, max_value=chunk_size-1, value=40)
-    if chunk_overlap >= chunk_size:
-        st.warning("Chunk Overlap should be less than Chunk Size!")
-with col3:
-    length_function_choice = st.selectbox("Length Function", ["Characters", "Tokens"], index=0)
-with col4:
-    splitter_choices = ["Character", "RecursiveCharacter"] + [str(v) for v in Language]
-    splitter_choice = st.selectbox("Text Splitter", splitter_choices, index=0)
-
-# Length Function Setup
-if length_function_choice == "Characters":
+# Set up length function based on configuration
+if LENGTH_FUNCTION_CHOICE == "Characters":
     length_function = len
-elif length_function_choice == "Tokens":
+elif LENGTH_FUNCTION_CHOICE == "Tokens":
     enc = tiktoken.get_encoding("cl100k_base")
     def length_function(text: str) -> int:
         return len(enc.encode(text))
 
-# Document Input Section
+# -------------------------
+# Use EPUB upload exclusively; manual input remains in code but is not displayed.
+# -------------------------
+input_method = "Upload EPUB"
+
 doc = ""
-# The manual input area is still in the code below, but is not reached because
-# input_method is fixed to "Upload EPUB".
 if input_method == "Manual Input":
     doc = st.text_area("Paste your text here:")
 
@@ -88,7 +77,7 @@ elif input_method == "Upload EPUB":
         st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
     
     if st.session_state.chapters:
-        # Clear session button
+        # Display a success message with chapter count and a clear button
         clear_col1, clear_col2 = st.columns([3, 1])
         with clear_col1:
             st.success(f"Loaded {len(st.session_state.chapters)} chapters")
@@ -99,22 +88,22 @@ elif input_method == "Upload EPUB":
                 st.session_state.chapter_index = 0
                 st.rerun()
         
-        # Chapter Selection and Display
+        # Chapter selection and display
         chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
         selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
-                                     index=st.session_state.chapter_index)
+                                        index=st.session_state.chapter_index)
         st.session_state.chapter_index = selected_chapter - 1
 
         st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
         doc = st.session_state.chapters[st.session_state.chapter_index]
         
-        # Chapter text with unique key based on chapter index
+        # Show the chapter text in a text area
         st.text_area("Chapter Text", 
-                   value=doc,
-                   height=300,
-                   key=f"chapter_text_{st.session_state.chapter_index}")
+                     value=doc,
+                     height=300,
+                     key=f"chapter_text_{st.session_state.chapter_index}")
 
-        # Responsive Navigation Buttons with forced rerun
+        # Navigation buttons for chapters
         nav_col1, nav_col2 = st.columns([1, 1])
         with nav_col1:
             if st.button("◀ Previous", use_container_width=True):
@@ -127,46 +116,47 @@ elif input_method == "Upload EPUB":
                     st.session_state.chapter_index += 1
                     st.rerun()
 
+# -------------------------
 # Text Processing Section
-prefix = "translate following text from chinese to english\n"
+# -------------------------
 if st.button("Split Text"):
     if not doc:
         st.error("No text to process!")
     else:
         try:
-            if splitter_choice == "Character":
+            if SPLITTER_CHOICE == "Character":
                 splitter = CharacterTextSplitter(
                     separator="\n\n",
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
                     length_function=length_function
                 )
-            elif splitter_choice == "RecursiveCharacter":
+            elif SPLITTER_CHOICE == "RecursiveCharacter":
                 splitter = RecursiveCharacterTextSplitter(
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
                     length_function=length_function
                 )
-            elif "Language." in splitter_choice:
-                language = splitter_choice.split(".")[1].lower()
+            elif "Language." in SPLITTER_CHOICE:
+                language = SPLITTER_CHOICE.split(".")[1].lower()
                 splitter = RecursiveCharacterTextSplitter.from_language(
                     language=language,
-                    chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
                     length_function=length_function
                 )
             
             splits = splitter.split_text(doc)
-            split_chunks = [prefix + s for s in splits]
+            split_chunks = [PREFIX + s for s in splits]
             
             for idx, chunk in enumerate(split_chunks, 1):
-                # Text area with unique key based on chapter and chunk index
+                # Display each chunk in a text area
                 st.text_area(f"Chunk {idx}", 
-                           value=chunk,
-                           height=200,
-                           key=f"chunk_{st.session_state.chapter_index}_{idx}")
+                             value=chunk,
+                             height=200,
+                             key=f"chunk_{st.session_state.chapter_index}_{idx}")
                 
-                # Copy button with consistent styling
+                # Copy button for the chunk
                 components.html(f"""
                 <div>
                     <button onclick="navigator.clipboard.writeText(`{chunk}`)"
