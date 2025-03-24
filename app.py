@@ -43,8 +43,8 @@ if 'chapters' not in st.session_state:
 # -------------------------
 # Configuration with improvements
 # -------------------------
-CHUNK_SIZE = 500  # Token-based size
-CHUNK_OVERLAP = 50
+CHUNK_SIZE = 1950  # Token-based size
+CHUNK_OVERLAP = 10
 PREFIX = "translate following text from chinese to english\n"
 
 # Tokenizer setup
