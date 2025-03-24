@@ -1,5 +1,6 @@
 import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
+import code_snippets as code_snippets
 import tiktoken
 import streamlit.components.v1 as components
 from ebooklib import epub
@@ -13,6 +14,7 @@ def extract_chapters(epub_content):
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(epub_content)
         tmp_file_name = tmp_file.name
+    
     try:
         book = epub.read_epub(tmp_file_name)
         for item in book.get_items():
@@ -29,26 +31,27 @@ def extract_chapters(epub_content):
                 chapters.append(text)
     finally:
         os.unlink(tmp_file_name)  # Clean up temporary file
+    
     return chapters
 
 # Initialize session state variables
 if 'chapter_index' not in st.session_state:
     st.session_state.chapter_index = 0
+if 'uploaded_epub' not in st.session_state:
+    st.session_state.uploaded_epub = None
 if 'chapters' not in st.session_state:
     st.session_state.chapters = []
-if 'input_method' not in st.session_state:
-    st.session_state.input_method = None
 
 # -------------------------
-# Configuration
+# Hard coded configuration
 # -------------------------
 CHUNK_SIZE = 1950
 CHUNK_OVERLAP = 10
-LENGTH_FUNCTION_CHOICE = "Characters"
-SPLITTER_CHOICE = "Character"
+LENGTH_FUNCTION_CHOICE = "Characters"  # Options: "Characters" or "Tokens"
+SPLITTER_CHOICE = "Character"           # Options: "Character", "RecursiveCharacter", or e.g. "Language.English"
 PREFIX = "translate following text from chinese to english\n"
 
-# Length function setup
+# Set up length function based on configuration
 if LENGTH_FUNCTION_CHOICE == "Characters":
     length_function = len
 elif LENGTH_FUNCTION_CHOICE == "Tokens":
@@ -57,125 +60,114 @@ elif LENGTH_FUNCTION_CHOICE == "Tokens":
         return len(enc.encode(text))
 
 # -------------------------
-# Input Method Selection
+# Use EPUB upload exclusively
 # -------------------------
-input_method = st.radio("Input Method", ["Upload EPUB", "Input Text"], 
-                        horizontal=True, key="input_method_selector")
+doc = ""
+uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
 
-if input_method == "Upload EPUB":
-    uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
-    
-    if uploaded_file:
-        # Clear previous input data
-        st.session_state.input_method = "EPUB"
-        st.session_state.chapters = extract_chapters(uploaded_file.read())
-        st.session_state.chapter_index = 0
+# Store uploaded file in session state
+if uploaded_file:
+    st.session_state.uploaded_epub = uploaded_file.read()
+    st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
+
+if st.session_state.chapters:
+    # Display a success message with chapter count and a clear button
+    clear_col1, clear_col2 = st.columns([3, 1])
+    with clear_col1:
         st.success(f"Loaded {len(st.session_state.chapters)} chapters")
-        
-        # Clear EPUB button
-        if st.button("🗑️ Clear EPUB"):
-            st.session_state.input_method = None
+    with clear_col2:
+        if st.button("🚮 Clear EPUB"):
+            st.session_state.uploaded_epub = None
             st.session_state.chapters = []
             st.session_state.chapter_index = 0
-            st.experimental_rerun()
-        
-elif input_method == "Input Text":
-    raw_text = st.text_area("Paste your text here", height=300, key="raw_input")
-    
-    # Input text action buttons
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("✅ Use This Text"):
-            st.session_state.input_method = "Text"
-            st.session_state.chapters = [raw_text]
-            st.session_state.chapter_index = 0
-            st.success("Text loaded successfully!")
-    with col2:
-        if st.button("🗑️ Clear Text"):
-            st.session_state.input_method = None
-            st.session_state.chapters = []
-            st.session_state.chapter_index = 0
-            st.experimental_rerun()
 
-# -------------------------
-# Display Section
-# -------------------------
-if st.session_state.input_method == "EPUB" and st.session_state.chapters:
-    # Chapter navigation for EPUB
+    # Chapter selection and display
     chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
     selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
                                     index=st.session_state.chapter_index)
     st.session_state.chapter_index = selected_chapter - 1
-    
+
     st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
-    current_text = st.session_state.chapters[st.session_state.chapter_index]
-    st.text_area("Chapter Text", value=current_text, height=300, 
-                 key=f"chapter_{st.session_state.chapter_index}")
-
-elif st.session_state.input_method == "Text" and st.session_state.chapters:
-    st.markdown("### Input Text")
-    current_text = st.session_state.chapters[0]
-    st.text_area("Text Content", value=current_text, height=300, key="raw_display")
-
-# -------------------------
-# Common Processing
-# -------------------------
-if st.session_state.chapters:
-    # Navigation buttons for EPUB
-    if st.session_state.input_method == "EPUB":
-        nav_col1, nav_col2 = st.columns([1, 1])
-        with nav_col1:
-            if st.button("← Previous", use_container_width=True) and st.session_state.chapter_index > 0:
-                st.session_state.chapter_index -= 1
-                st.experimental_rerun()
-        with nav_col2:
-            if st.button("Next →", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
-                st.session_state.chapter_index += 1
-                st.experimental_rerun()
+    doc = st.session_state.chapters[st.session_state.chapter_index]
     
-    # Split text button
-    if st.button("SplitOptions"):
-        doc = st.session_state.chapters[st.session_state.chapter_index] if st.session_state.input_method == "EPUB" else st.session_state.chapters[0]
-        
-        if not doc:
-            st.error("No text to process!")
-        else:
-            try:
-                # Splitter initialization (FIXED PART)
-                if SPLITTER_CHOICE == "Character":
-                    splitter = CharacterTextSplitter(
-                        separator="\n",
-                        chunk_size=CHUNK_SIZE,
-                        chunk_overlap=CHUNK_OVERLAP,
-                        length_function=length_function
-                    )
-                elif SPLITTER_CHOICE == "RecursiveCharacter":
-                    splitter = RecursiveCharacterTextSplitter(
-                        chunk_size=CHUNK_SIZE,
-                        chunk_overlap=CHUNK_OVERLAP,
-                        length_function=length_function
-                    )
-                elif "Language." in SPLITTER_CHOICE:
-                    language = SPLITTER_CHOICE.split(".")[1].lower()
-                    splitter = RecursiveCharacterTextSplitter.from_language(
-                        language=language,
-                        chunk_size=CHUNK_SIZE,
-                        chunk_overlap=CHUNK_OVERLAP,
-                        length_function=length_function
-                    )
-                else:
-                    raise ValueError("Invalid splitter choice")
+    # Show the chapter text in a text area
+    st.text_area("Chapter Text", 
+                 value=doc,
+                 height=300,
+                 key=f"chapter_text_{st.session_state.chapter_index}")
+
+    # Navigation buttons for chapters without explicit st.rerun()
+    nav_col1, nav_col2 = st.columns([1, 1])
+    with nav_col1:
+        if st.button("◀ Previous", use_container_width=True) and st.session_state.chapter_index > 0:
+            st.session_state.chapter_index -= 1
+    with nav_col2:
+        if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
+            st.session_state.chapter_index += 1
+
+# -------------------------
+# Text Processing Section
+# -------------------------
+if st.button("Split Text"):
+    if not doc:
+        st.error("No text to process!")
+    else:
+        try:
+            if SPLITTER_CHOICE == "Character":
+                splitter = CharacterTextSplitter(
+                    separator="\n\n",
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
+                    length_function=length_function
+                )
+            elif SPLITTER_CHOICE == "RecursiveCharacter":
+                splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
+                    length_function=length_function
+                )
+            elif "Language." in SPLITTER_CHOICE:
+                language = SPLITTER_CHOICE.split(".")[1].lower()
+                splitter = RecursiveCharacterTextSplitter.from_language(
+                    language=language,
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
+                    length_function=length_function
+                )
+            
+            splits = splitter.split_text(doc)
+            split_chunks = [PREFIX + s for s in splits]
+            
+            for idx, chunk in enumerate(split_chunks, 1):
+                # Display each chunk in a text area
+                st.text_area(f"Chunk {idx}", 
+                             value=chunk,
+                             height=200,
+                             key=f"chunk_{st.session_state.chapter_index}_{idx}")
                 
-                splits = splitter.split_text(doc)
-                split_chunks = [PREFIX + s for s in splits]
-                
-                for idx, chunk in enumerate(split_chunks, 1):
-                    st.text_area(f"Chunk {idx}", value=chunk, height=200, key=f"chunk_{idx}")
-                    components.html(f"""
+                # Copy button for the chunk
+                components.html(f"""
+                <div>
                     <button onclick="navigator.clipboard.writeText(`{chunk}`)"
-                        style="background:#f63366;color:white;border:none;padding:8px 12px;border-radius:5px;cursor:pointer;width:100%;">
+                        style="
+                            padding: 0.25rem 0.75rem;
+                            background-color: #f63366;
+                            color: white;
+                            border: none;
+                            border-radius: 0.5rem;
+                            font-family: sans-serif;
+                            font-size: 0.9rem;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            margin: 5px 0;
+                            width: 100%;
+                        "
+                        onmouseover="this.style.backgroundColor='#d52f5b'"
+                        onmouseout="this.style.backgroundColor='#f63366'">
                         📋 Copy Chunk {idx}
                     </button>
-                    """, height=50)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+                </div>
+                """, height=60)
+
+        except Exception as e:
+            st.error(f"Processing error: {str(e)}")
