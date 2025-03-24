@@ -35,6 +35,9 @@ def extract_chapters(uploaded_file):
     except Exception as e:
         st.error(f"Error processing EPUB: {str(e)}")
         return []
+    finally:
+        if os.path.exists("temp.epub"):
+            os.unlink("temp.epub")
 
 def detect_encoding(text):
     result = chardet.detect(text)
@@ -43,6 +46,9 @@ def detect_encoding(text):
 
 def split_text(text, splitter_type='recursive'):
     try:
+        if not text.strip():
+            return []
+
         if splitter_type == 'character':
             splitter = CharacterTextSplitter(
                 separator="\n\n",
@@ -88,6 +94,10 @@ def main():
         st.session_state.chapters = []
     if 'current_chapter' not in st.session_state:
         st.session_state.current_chapter = 0
+    if 'manual_text' not in st.session_state:
+        st.session_state.manual_text = ""
+    if 'chunks' not in st.session_state:
+        st.session_state.chunks = []
 
     st.title("Document Processing Tool")
     
@@ -105,10 +115,18 @@ def main():
         uploaded_file = st.file_uploader("Upload EPUB file", type=["epub"])
         if uploaded_file:
             st.session_state.chapters = extract_chapters(uploaded_file)
+            st.session_state.manual_text = ""
+            st.session_state.current_chapter = 0
     else:
-        manual_text = st.text_area("Enter text:", height=200)
+        manual_text = st.text_area(
+            "Enter text:",
+            value=st.session_state.manual_text,
+            height=200,
+            key="manual_text_input"
+        )
         if manual_text:
-            st.session_state.chapters = [manual_text.strip()]
+            st.session_state.manual_text = manual_text.strip()
+            st.session_state.chapters = [st.session_state.manual_text]
             st.session_state.current_chapter = 0
 
     # Content display and navigation
@@ -127,7 +145,7 @@ def main():
                 st.markdown(f"**Chapter {st.session_state.current_chapter + 1} of {len(st.session_state.chapters)}**")
 
         current_content = st.session_state.chapters[st.session_state.current_chapter]
-        st.text_area("Current Content", value=current_content, height=300, key="content_display")
+        st.text_area("Current Content", value=current_content, height=300, key="content_display", disabled=True)
 
         # Processing options
         col1, col2 = st.columns(2)
@@ -139,17 +157,16 @@ def main():
             )
         with col2:
             if st.button("🚀 Process Content"):
-                chunks = split_text(
-                    current_content,
-                    splitter_type.lower()
-                )
-                
-                if chunks:
-                    st.session_state.chunks = chunks
-                    st.experimental_rerun()
+                if current_content.strip():
+                    st.session_state.chunks = split_text(
+                        current_content,
+                        splitter_type.lower()
+                    )
+                else:
+                    st.warning("Please enter valid content to process")
 
         # Display chunks
-        if 'chunks' in st.session_state:
+        if st.session_state.chunks:
             st.subheader("Processed Chunks")
             for i, chunk in enumerate(st.session_state.chunks):
                 st.markdown(f"""
@@ -163,7 +180,12 @@ def main():
     # Clear button
     if st.button("🚮 Clear All"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.session_state.update({
+            'chapters': [],
+            'current_chapter': 0,
+            'manual_text': "",
+            'chunks': []
+        })
 
 if __name__ == "__main__":
     main()
