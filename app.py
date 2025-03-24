@@ -1,6 +1,5 @@
 import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
-import code_snippets as code_snippets
 import tiktoken
 import streamlit.components.v1 as components
 from ebooklib import epub
@@ -142,8 +141,31 @@ if st.session_state.chapters:
             st.error("No text to process!")
         else:
             try:
-                # Splitter selection logic remains the same
-                # ... (existing splitter code from original app)
+                # Splitter initialization (FIXED PART)
+                if SPLITTER_CHOICE == "Character":
+                    splitter = CharacterTextSplitter(
+                        separator="\n",
+                        chunk_size=CHUNK_SIZE,
+                        chunk_overlap=CHUNK_OVERLAP,
+                        length_function=length_function
+                    )
+                elif SPLITTER_CHOICE == "RecursiveCharacter":
+                    splitter = RecursiveCharacterTextSplitter(
+                        chunk_size=CHUNK_SIZE,
+                        chunk_overlap=CHUNK_OVERLAP,
+                        length_function=length_function
+                    )
+                elif "Language." in SPLITTER_CHOICE:
+                    language = SPLITTER_CHOICE.split(".")[1].lower()
+                    splitter = RecursiveCharacterTextSplitter.from_language(
+                        language=language,
+                        chunk_size=CHUNK_SIZE,
+                        chunk_overlap=CHUNK_OVERLAP,
+                        length_function=length_function
+                    )
+                else:
+                    raise ValueError("Invalid splitter choice")
+                
                 splits = splitter.split_text(doc)
                 split_chunks = [PREFIX + s for s in splits]
                 
