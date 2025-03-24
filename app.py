@@ -1,12 +1,12 @@
 import streamlit as st
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
+import code_snippets as code_snippets
 import tiktoken
 import streamlit.components.v1 as components
 from ebooklib import epub
 from bs4 import BeautifulSoup
 import tempfile
 import os
-import json
 
 def extract_chapters(epub_content):
     """Extracts chapters from EPUB content bytes using a temporary file."""
@@ -14,6 +14,7 @@ def extract_chapters(epub_content):
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(epub_content)
         tmp_file_name = tmp_file.name
+    
     try:
         book = epub.read_epub(tmp_file_name)
         for item in book.get_items():
@@ -29,7 +30,8 @@ def extract_chapters(epub_content):
                 text = soup.get_text(separator="\n")
                 chapters.append(text)
     finally:
-        os.unlink(tmp_file_name)
+        os.unlink(tmp_file_name)  # Clean up temporary file
+    
     return chapters
 
 # Initialize session state variables
@@ -41,143 +43,128 @@ if 'chapters' not in st.session_state:
     st.session_state.chapters = []
 
 # -------------------------
-# Configuration with improvements
+# Hard coded configuration
 # -------------------------
-CHUNK_SIZE = 1950  # Token-based size
+CHUNK_SIZE = 1950
 CHUNK_OVERLAP = 10
+LENGTH_FUNCTION_CHOICE = "Characters"  # Options: "Characters" or "Tokens"
+SPLITTER_CHOICE = "Character"           # Options: "Character", "RecursiveCharacter", or e.g. "Language.English"
 PREFIX = "translate following text from chinese to english\n"
 
-# Tokenizer setup
-enc = tiktoken.get_encoding("cl100k_base")
-def length_function(text: str) -> int:
-    return len(enc.encode(text))
-
-prefix_tokens = length_function(PREFIX)
-adjusted_chunk_size = CHUNK_SIZE - prefix_tokens
-
-# UI elements for configuration
-st.sidebar.subheader("Splitting Configuration")
-splitter_language = st.sidebar.selectbox("Splitter Language", 
-                                        ["Chinese", "English", "Other"],
-                                        index=0)
-show_token_counts = st.sidebar.checkbox("Show token counts", value=True)
-
-# Separator selection based on language
-if splitter_language == "Chinese":
-    separators = ["。", "！", "？", "\n\n", "\n", ""]
-elif splitter_language == "English":
-    separators = ["\n\n", "\n", " ", ""]
-else:
-    separators = ["\n\n", "\n", " ", ""]
+# Set up length function based on configuration
+if LENGTH_FUNCTION_CHOICE == "Characters":
+    length_function = len
+elif LENGTH_FUNCTION_CHOICE == "Tokens":
+    enc = tiktoken.get_encoding("cl100k_base")
+    def length_function(text: str) -> int:
+        return len(enc.encode(text))
 
 # -------------------------
-# EPUB Upload Handling
+# Use EPUB upload exclusively
 # -------------------------
+doc = ""
 uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
 
+# Store uploaded file in session state
 if uploaded_file:
     st.session_state.uploaded_epub = uploaded_file.read()
     st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
 
 if st.session_state.chapters:
-    # Chapter management UI
+    # Display a success message with chapter count and a clear button
     clear_col1, clear_col2 = st.columns([3, 1])
     with clear_col1:
         st.success(f"Loaded {len(st.session_state.chapters)} chapters")
     with clear_col2:
-        if st.button("🗑️ Clear EPUB"):
+        if st.button("🚮 Clear EPUB"):
             st.session_state.uploaded_epub = None
             st.session_state.chapters = []
             st.session_state.chapter_index = 0
 
-    # Chapter selection and navigation
-    chapter_numbers = list(range(1, len(st.session_state.chapters)+1))
+    # Chapter selection and display
+    chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
     selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
                                     index=st.session_state.chapter_index)
     st.session_state.chapter_index = selected_chapter - 1
 
-    st.markdown(f"### Chapter {selected_chapter}")
-    current_chapter = st.session_state.chapters[st.session_state.chapter_index]
-    st.text_area("Chapter Text", value=current_chapter, height=300,
-                 key=f"chapter_{st.session_state.chapter_index}")
+    st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
+    doc = st.session_state.chapters[st.session_state.chapter_index]
+    
+    # Show the chapter text in a text area
+    st.text_area("Chapter Text", 
+                 value=doc,
+                 height=300,
+                 key=f"chapter_text_{st.session_state.chapter_index}")
 
+    # Navigation buttons for chapters without explicit st.rerun()
     nav_col1, nav_col2 = st.columns([1, 1])
     with nav_col1:
-        if st.button("← Previous", use_container_width=True) and st.session_state.chapter_index > 0:
+        if st.button("◀ Previous", use_container_width=True) and st.session_state.chapter_index > 0:
             st.session_state.chapter_index -= 1
     with nav_col2:
-        if st.button("Next →", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
+        if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
             st.session_state.chapter_index += 1
 
 # -------------------------
 # Text Processing Section
 # -------------------------
-if st.button("SplitOptions"):
-    current_text = st.session_state.chapters[st.session_state.chapter_index] if st.session_state.chapters else ""
-    if not current_text:
+if st.button("Split Text"):
+    if not doc:
         st.error("No text to process!")
     else:
         try:
-            # Create splitter with language-specific configuration
-            splitter = RecursiveCharacterTextSplitter(
-                separators=separators,
-                chunk_size=adjusted_chunk_size,
-                chunk_overlap=CHUNK_OVERLAP,
-                length_function=length_function
-            )
-            
-            splits = splitter.split_text(current_text)
-            valid_chunks = []
-            
-            for s in splits:
-                chunk = PREFIX + s
-                chunk_length = length_function(chunk)
-                
-                if chunk_length <= CHUNK_SIZE:
-                    valid_chunks.append(chunk)
-                else:
-                    st.warning(f"Oversized chunk skipped ({chunk_length} tokens)")
-
-            # Display results
-            st.subheader(f"Created {len(valid_chunks)} chunks:")
-            for idx, chunk in enumerate(valid_chunks, 1):
-                # Token count display
-                if show_token_counts:
-                    st.caption(f"Tokens: {length_function(chunk)} / {CHUNK_SIZE}")
-                
-                # Scrollable text area
-                st.text_area(
-                    label=f"Chunk {idx}",
-                    value=chunk,
-                    height=150,
-                    key=f"chunk_{st.session_state.chapter_index}_{idx}",
-                    label_visibility="visible"
+            if SPLITTER_CHOICE == "Character":
+                splitter = CharacterTextSplitter(
+                    separator="\n\n",
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
+                    length_function=length_function
                 )
+            elif SPLITTER_CHOICE == "RecursiveCharacter":
+                splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
+                    length_function=length_function
+                )
+            elif "Language." in SPLITTER_CHOICE:
+                language = SPLITTER_CHOICE.split(".")[1].lower()
+                splitter = RecursiveCharacterTextSplitter.from_language(
+                    language=language,
+                    chunk_size=CHUNK_SIZE,
+                    chunk_overlap=CHUNK_OVERLAP,
+                    length_function=length_function
+                )
+            
+            splits = splitter.split_text(doc)
+            split_chunks = [PREFIX + s for s in splits]
+            
+            for idx, chunk in enumerate(split_chunks, 1):
+                # Display each chunk in a text area
+                st.text_area(f"Chunk {idx}", 
+                             value=chunk,
+                             height=200,
+                             key=f"chunk_{st.session_state.chapter_index}_{idx}")
                 
-                # Enhanced copy button
+                # Copy button for the chunk
                 components.html(f"""
-                <div style="margin: 5px 0;">
-                    <button onclick="navigator.clipboard.writeText({json.dumps(chunk)})"
+                <div>
+                    <button onclick="navigator.clipboard.writeText(`{chunk}`)"
                         style="
-                            padding: 0.5rem 1rem;
-                            background: #f63366;
+                            padding: 0.25rem 0.75rem;
+                            background-color: #f63366;
                             color: white;
                             border: none;
-                            border-radius: 0.375rem;
-                            cursor: pointer;
-                            transition: all 0.2s ease;
-                            width: 100%;
+                            border-radius: 0.5rem;
+                            font-family: sans-serif;
                             font-size: 0.9rem;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            margin: 5px 0;
+                            width: 100%;
                         "
                         onmouseover="this.style.backgroundColor='#d52f5b'"
                         onmouseout="this.style.backgroundColor='#f63366'">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard" viewBox="0 0 16 16" style="margin-right: 8px;">
-                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2H4zM3 3.5h10a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/>
-                        </svg>
-                        Copy Chunk {idx}
+                        📋 Copy Chunk {idx}
                     </button>
                 </div>
                 """, height=60)
