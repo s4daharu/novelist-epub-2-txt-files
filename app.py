@@ -11,6 +11,19 @@ import os
 def extract_chapters(epub_content):
     """Extracts chapters from EPUB content bytes using a temporary file."""
     chapters = []
+    with tempfile.NamedTemporaryFile(dimport streamlit as st
+from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
+import code_snippets as code_snippets
+import tiktoken
+import streamlit.components.v1 as components
+from ebooklib import epub
+from bs4 import BeautifulSoup
+import tempfile
+import os
+
+def extract_chapters(epub_content):
+    """Extracts chapters from EPUB content bytes using a temporary file."""
+    chapters = []
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(epub_content)
         tmp_file_name = tmp_file.name
@@ -41,6 +54,8 @@ if 'uploaded_epub' not in st.session_state:
     st.session_state.uploaded_epub = None
 if 'chapters' not in st.session_state:
     st.session_state.chapters = []
+if 'manual_input' not in st.session_state:
+    st.session_state.manual_input = ""
 
 # -------------------------
 # Hard coded configuration
@@ -73,7 +88,7 @@ if text_source == "Uploaded EPUB":
         st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
     
     if st.session_state.chapters:
-        # Display a success message with chapter count and a clear button
+        # Display a success message with chapter count and a clear button for the EPUB content
         clear_col1, clear_col2 = st.columns([3, 1])
         with clear_col1:
             st.success(f"Loaded {len(st.session_state.chapters)} chapters")
@@ -82,7 +97,7 @@ if text_source == "Uploaded EPUB":
                 st.session_state.uploaded_epub = None
                 st.session_state.chapters = []
                 st.session_state.chapter_index = 0
-                st.rerun()
+                st.experimental_rerun()
         
         # Chapter selection and display
         chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
@@ -105,17 +120,33 @@ if text_source == "Uploaded EPUB":
             if st.button("◀ Previous", use_container_width=True):
                 if st.session_state.chapter_index > 0:
                     st.session_state.chapter_index -= 1
-                    st.rerun()
+                    st.experimental_rerun()
         with nav_col2:
             if st.button("Next ▶", use_container_width=True):
                 if st.session_state.chapter_index < len(st.session_state.chapters)-1:
                     st.session_state.chapter_index += 1
-                    st.rerun()
+                    st.experimental_rerun()
     else:
         st.info("Upload an EPUB file to extract chapters.")
         
 elif text_source == "Manual Input":
-    doc = st.text_area("Enter text to split:", height=300)
+    doc = st.text_area("Enter text to split:", value=st.session_state.manual_input, height=300, key="manual_input")
+
+# -------------------------
+# Control Buttons Section
+# -------------------------
+col_reset, col_split = st.columns([1, 2])
+with col_reset:
+    if st.button("Reset"):
+        # Clear manual input if applicable
+        if text_source == "Manual Input":
+            st.session_state.manual_input = ""
+        # Clear EPUB related state if applicable
+        if text_source == "Uploaded EPUB":
+            st.session_state.uploaded_epub = None
+            st.session_state.chapters = []
+            st.session_state.chapter_index = 0
+        st.experimental_rerun()
 
 # -------------------------
 # Text Processing Section
