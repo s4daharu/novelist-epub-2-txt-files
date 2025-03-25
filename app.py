@@ -76,14 +76,12 @@ if text_source == "Uploaded EPUB":
         st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
 
     if st.session_state.chapters:
-        clear_col1, clear_col2 = st.columns([3, 1])
-        with clear_col1:
+        col1, col2 = st.columns([3, 1])
+        with col1:
             st.success(f"Loaded {len(st.session_state.chapters)} chapters")
-        with clear_col2:
+        with col2:
             if st.button("🚮 Clear EPUB"):
-                st.session_state.uploaded_epub = None
-                st.session_state.chapters = []
-                st.session_state.chapter_index = 0
+                st.session_state.clear()
                 st.experimental_rerun()
 
         # Select and display chapter
@@ -99,15 +97,13 @@ if text_source == "Uploaded EPUB":
         # Navigation buttons
         nav_col1, nav_col2 = st.columns([1, 1])
         with nav_col1:
-            if st.button("◀ Previous", use_container_width=True):
-                if st.session_state.chapter_index > 0:
-                    st.session_state.chapter_index -= 1
-                    st.experimental_rerun()
+            if st.button("◀ Previous", use_container_width=True) and st.session_state.chapter_index > 0:
+                st.session_state.chapter_index -= 1
+                st.experimental_rerun()
         with nav_col2:
-            if st.button("Next ▶", use_container_width=True):
-                if st.session_state.chapter_index < len(st.session_state.chapters)-1:
-                    st.session_state.chapter_index += 1
-                    st.experimental_rerun()
+            if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters) - 1:
+                st.session_state.chapter_index += 1
+                st.experimental_rerun()
 
 elif text_source == "Manual Input":
     doc = st.text_area("Enter text to split:", value=st.session_state.manual_input, height=300, key="manual_input")
@@ -118,13 +114,8 @@ elif text_source == "Manual Input":
 col_reset, col_split = st.columns([1, 2])
 with col_reset:
     if st.button("Reset"):
-        if text_source == "Manual Input":
-            st.session_state.manual_input = ""  # ✅ Corrected Reset Logic
-        if text_source == "Uploaded EPUB":
-            st.session_state.uploaded_epub = None
-            st.session_state.chapters = []
-            st.session_state.chapter_index = 0
-        st.experimental_rerun()  # ✅ Refresh UI After Reset
+        st.session_state.clear()
+        st.experimental_rerun()
 
 # -------------------------
 # Text Splitting
@@ -162,7 +153,6 @@ if st.button("Split Text"):
             for idx, chunk in enumerate(split_chunks, 1):
                 st.text_area(f"Chunk {idx}", value=chunk, height=200, key=f"chunk_{idx}")
 
-                # Copy button for each chunk
                 components.html(f"""
                 <div>
                     <button onclick="navigator.clipboard.writeText(`{chunk}`)"
