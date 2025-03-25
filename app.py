@@ -1,184 +1,231 @@
-import streamlit as st
-from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
-import tiktoken
-import streamlit.components.v1 as components
-from ebooklib import epub
-from bs4 import BeautifulSoup
-import tempfile
-import os
+Chapter 43: The Most Embarrassing Moment Ever
 
-def extract_chapters(epub_content):
-    """Extracts chapters from EPUB content bytes using a temporary file."""
-    chapters = []
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(epub_content)
-        tmp_file_name = tmp_file.name
+"Keep your voice down."
 
-    try:
-        book = epub.read_epub(tmp_file_name)
-        for item in book.get_items():
-            if item.get_type() == epub.EpubHtml or item.get_name().endswith('.xhtml'):
-                try:
-                    content = item.get_content().decode('utf-8')
-                except Exception:
-                    try:
-                        content = item.get_content().decode('gb18030')
-                    except Exception:
-                        content = item.get_content().decode('latin-1', errors='ignore')
-                soup = BeautifulSoup(content, 'html.parser')
-                text = soup.get_text(separator="\n")
-                chapters.append(text)
-    finally:
-        os.unlink(tmp_file_name)  # Clean up temporary file
+"Don't push me!"
 
-    return chapters
+Jiang Ning clutched a lavender-scented purple envelope in her hand as she and Luo Shanshan sneaked up to the third floor of the teaching building.
 
-# -------------------------
-# Initialize session state
-# -------------------------
-if 'chapter_index' not in st.session_state:
-    st.session_state.chapter_index = 0
-if 'uploaded_epub' not in st.session_state:
-    st.session_state.uploaded_epub = None
-if 'chapters' not in st.session_state:
-    st.session_state.chapters = []
-if 'manual_input' not in st.session_state:
-    st.session_state.manual_input = ""
+It was class time, so they didn't dare to be too conspicuous.
 
-# -------------------------
-# Configuration
-# -------------------------
-CHUNK_SIZE = 1950
-CHUNK_OVERLAP = 10
-LENGTH_FUNCTION_CHOICE = "Characters"  # Options: "Characters" or "Tokens"
-SPLITTER_CHOICE = "Character"          # Options: "Character", "RecursiveCharacter", or "Language.English"
-PREFIX = "translate following text from Chinese to English:\n"
+Even so, a few teachers going up and down the stairs still noticed them.
 
-# Set up length function
-if LENGTH_FUNCTION_CHOICE == "Characters":
-    length_function = len
-elif LENGTH_FUNCTION_CHOICE == "Tokens":
-    enc = tiktoken.get_encoding("cl100k_base")
-    def length_function(text: str) -> int:
-        return len(enc.encode(text))
+One of them, a math teacher from another class, even joked with Jiang Ning:
 
-# -------------------------
-# Text Source Selection
-# -------------------------
-text_source = st.radio("Select text source:", ["Uploaded EPUB", "Manual Input"])
+"Jiang Ning? What brings you to the third floor?"
 
-doc = ""
+"Thinking about transferring classes? Come to Class 10! Our class—"
 
-if text_source == "Uploaded EPUB":
-    uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
-    if uploaded_file:
-        st.session_state.uploaded_epub = uploaded_file.read()
-        st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
+After a long introduction, Jiang Ning and Luo Shanshan could only nod politely.
 
-    if st.session_state.chapters:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.success(f"Loaded {len(st.session_state.chapters)} chapters")
-        with col2:
-            if st.button("🚮 Clear EPUB"):
-                st.session_state.clear()
-                st.experimental_rerun()
-                st.stop()  # Ensure no further execution in the current run
+Finally escaping the teacher, Jiang Ning patted the pocket containing her item and sighed softly.
 
-        # Select and display chapter
-        chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
-        selected_chapter = st.selectbox("Chapter Number", chapter_numbers, index=st.session_state.chapter_index)
-        st.session_state.chapter_index = selected_chapter - 1
+"Who knew delivering a letter would be this hard?"
 
-        st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
-        doc = st.session_state.chapters[st.session_state.chapter_index]
+"No wonder Qi Wen refused to come no matter what!"
 
-        st.text_area("Chapter Text", value=doc, height=300, key=f"chapter_text_{st.session_state.chapter_index}")
+But Luo Shanshan didn't see it that way.
 
-        # Navigation buttons
-        nav_col1, nav_col2 = st.columns([1, 1])
-        with nav_col1:
-            if st.button("◀ Previous", use_container_width=True) and st.session_state.chapter_index > 0:
-                st.session_state.chapter_index -= 1
-                st.experimental_rerun()
-                st.stop()
-        with nav_col2:
-            if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters) - 1:
-                st.session_state.chapter_index += 1
-                st.experimental_rerun()
-                st.stop()
+"It's because of that face of yours—too eye-catching."
 
-elif text_source == "Manual Input":
-    doc = st.text_area("Enter text to split:", value=st.session_state.manual_input, height=300, key="manual_input")
+"Good thing it's not break time, or else—"
 
-# -------------------------
-# Reset and Split Buttons
-# -------------------------
-col_reset, col_split = st.columns([1, 2])
-with col_reset:
-    if st.button("Reset"):
-        st.session_state.clear()
-        st.experimental_rerun()
-        st.stop()
+Ding Ling!!!
 
-# -------------------------
-# Text Splitting
-# -------------------------
-if st.button("Split Text"):
-    if not doc:
-        st.error("No text to process!")
-    else:
-        try:
-            if SPLITTER_CHOICE == "Character":
-                splitter = CharacterTextSplitter(
-                    separator="\n\n",
-                    chunk_size=CHUNK_SIZE,
-                    chunk_overlap=CHUNK_OVERLAP,
-                    length_function=length_function
-                )
-            elif SPLITTER_CHOICE == "RecursiveCharacter":
-                splitter = RecursiveCharacterTextSplitter(
-                    chunk_size=CHUNK_SIZE,
-                    chunk_overlap=CHUNK_OVERLAP,
-                    length_function=length_function
-                )
-            elif "Language." in SPLITTER_CHOICE:
-                language = SPLITTER_CHOICE.split(".")[1].lower()
-                splitter = RecursiveCharacterTextSplitter.from_language(
-                    language=language,
-                    chunk_size=CHUNK_SIZE,
-                    chunk_overlap=CHUNK_OVERLAP,
-                    length_function=length_function
-                )
+At that moment, the class bell rang.
 
-            splits = splitter.split_text(doc)
-            split_chunks = [PREFIX + s for s in splits]
+Jiang Ning's face changed instantly, and she cursed.
 
-            for idx, chunk in enumerate(split_chunks, 1):
-                st.text_area(f"Chunk {idx}", value=chunk, height=200, key=f"chunk_{idx}")
+"You jinx!"
 
-                components.html(f"""
-                <div>
-                    <button onclick="navigator.clipboard.writeText(`{chunk}`)"
-                        style="
-                            padding: 0.25rem 0.75rem;
-                            background-color: #f63366;
-                            color: white;
-                            border: none;
-                            border-radius: 0.5rem;
-                            font-family: sans-serif;
-                            font-size: 0.9rem;
-                            cursor: pointer;
-                            transition: all 0.3s ease;
-                            margin: 5px 0;
-                            width: 100%;
-                        "
-                        onmouseover="this.style.backgroundColor='#d52f5b'"
-                        onmouseout="this.style.backgroundColor='#f63366'">
-                        📋 Copy Chunk {idx}
-                    </button>
-                </div>
-                """, height=60)
+"What do we do now?!"
 
-        except Exception as e:
-            st.error(f"Processing error: {str(e)}")
+"Deliver it, of course. If you turn back now, how will you explain it to Wenwen?" Luo Shanshan looked downright smug as she said it.
+
+"Don't worry, I'll wait right here. It'll be quick."
+
+"Just think of it like giving birth—painful for a moment, but you'll feel better after!"
+
+Giving birth, my ass.
+
+Looking at the students streaming out of their classrooms, Jiang Ning really wanted to turn and leave.
+
+But then she thought about the deal she made with Yang Mei and the promise she made to Qi Wen.
+
+Gritting her teeth, she took a deep breath and muttered:
+
+"It's just delivering something!"
+
+"Just think of it as being a delivery person!"
+
+Ignoring the strange looks from passing students, she strode toward Class 9’s door.
+
+"Ahem, uh, is Tao Tao here?"
+
+That single sentence immediately caught the attention of a chubby boy sitting in the front row of Class 9.
+
+He instinctively looked up and followed the voice—
+
+Only to see a bright, beautiful face, tinged with a slight blush, looking straight at him.
+
+In an instant—
+
+He froze.
+
+Stared blankly for a long moment.
+
+Then, as if realizing something, he turned around and, using the loudest voice he had since school started, shouted:
+
+"T-Tao bro! A fairy is looking for you!!!"
+
+Fairy?!
+
+That word instantly captured the entire class's attention.
+
+And the moment they saw the charming girl at the classroom door, a chorus of "Whoa!!" erupted.
+
+They sounded like a bunch of monkeys in the mountains during mating season.
+
+Jiang Ning's smile stiffened.
+
+The word fairy was bad enough. Now add a bunch of howling monkeys?
+
+At this moment—
+
+She really wished the ground would open up so she could disappear.
+
+But she had already come this far.
+
+Damn it.
+
+Taking several deep breaths to calm herself, Jiang Ning ignored the crowd and marched into Class 9.
+
+Following the students' gazes, she reached a desk in the back by the window.
+
+There sat a young man, mouth slightly open, face full of confusion.
+
+Without hesitation, Jiang Ning pulled the items from her pocket and slammed them onto Tao Tao's desk.
+
+"Delivering something on someone else's behalf!"
+
+With those four words, she completely ignored his dumbfounded expression, turned on her heel, and strode out of Class 9.
+
+Once outside, Jiang Ning bolted down the hallway like she was escaping.
+
+Leaning against the wall, she gasped for breath while glaring at Luo Shanshan, who was watching leisurely.
+
+"I've decided—from now on, I will treat every love letter I receive with utmost respect."
+
+"Because delivering them is absolute hell."
+
+Luo Shanshan burst into uncontrollable laughter, slapping the stair railing repeatedly.
+
+Jiang Ning, still feeling humiliated, couldn't stand the mockery.
+
+She immediately transformed into Crazy Jiang and chased Luo Shanshan downstairs.
+
+—
+
+Meanwhile, back in Class 9.
+
+Tao Tao's desk now held a bottle of Yunnan Baiyao Healing Spray, a light purple envelope, and a thin, square object with small flowers engraved on it.
+
+The first two were easy to recognize.
+
+But the last item? Tao Tao was confused.
+
+Just as he reached out to pick it up, his seatmate—Summer Solstice, a tomboy—grabbed it first.
+
+Then, turning around, she stared at Tao Tao with an expression as if she was looking at a complete pervert.
+
+"Tao Tao! Why the hell did a girl give you a pack of sanitary pads?!"
+
+—
+
+Jiang Ning had no idea she had accidentally included something disastrous in the delivery.
+
+At that moment, she was confidently reporting back to Qi Wen.
+
+Luo Shanshan was still laughing but nodded in agreement.
+
+Qi Wen blushed slightly, glancing around to make sure no one was paying attention before whispering:
+
+"Don't tell anyone."
+
+Ah, afraid of embarrassment, huh?
+
+I get it, little girls and their secrets.
+
+Jiang Ning immediately made an OK gesture.
+
+—
+
+One class later.
+
+A voice called from outside:
+
+"Jiang Ning, someone’s looking for you."
+
+Who?
+
+Jiang Ning was in the middle of battling a reading passage. Hearing her name, she looked up, confused.
+
+And saw—
+
+A girl dressed in neutral clothing standing in front of her.
+
+"Jiang Xiaoning, we meet again."
+
+Hearing that name, Jiang Ning was briefly stunned.
+
+Then memories flooded back—of this person scratching her palm.
+
+A strange itch.
+
+"Summer… Solstice?"
+
+"Ahem, what brings you here?"
+
+"Delivering something on behalf of a certain limping idiot."
+
+Summer Solstice pulled a yellow envelope from her pocket and placed it on Jiang Ning’s desk. Along with it, she set down a thermos flask—
+
+And a thin, square object.
+
+The first two were fine. Jiang Ning was confused but not overly concerned.
+
+But when she saw the last item—
+
+Something about it looked familiar.
+
+Instinctively, she checked her pocket.
+
+Finding it empty—
+
+She froze.
+
+Sat stiffly in her chair, mind blank, ears ringing.
+
+She didn't even hear Summer Solstice's parting words.
+
+Luo Shanshan, puzzled, leaned over and quickly stuffed the sanitary pad into Jiang Ning’s desk—after all, it was a girl's personal item.
+
+Then she curiously picked up the thermos and sniffed it.
+
+"Oh? Brown sugar water!"
+
+"Jiang Jiang, who gave this to you? They even know brown sugar water is good for period cramps!"
+
+"Wait—Jiang Jiang, why are you crying?"
+
+"Are you moved?"
+
+"I mean… if I were on my period and someone gave me a flask of brown sugar water, I might cry too—"
+
+———
+
+Author’s Notes:
+Please add to your collection, follow the story, and vote for me!
+Thank you!!
+Bowing deeply!!
+
