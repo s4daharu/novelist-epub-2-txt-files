@@ -83,6 +83,7 @@ if text_source == "Uploaded EPUB":
             if st.button("🚮 Clear EPUB"):
                 st.session_state.clear()
                 st.experimental_rerun()
+                st.stop()  # Ensure no further execution in the current run
 
         # Select and display chapter
         chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
@@ -100,10 +101,12 @@ if text_source == "Uploaded EPUB":
             if st.button("◀ Previous", use_container_width=True) and st.session_state.chapter_index > 0:
                 st.session_state.chapter_index -= 1
                 st.experimental_rerun()
+                st.stop()
         with nav_col2:
             if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters) - 1:
                 st.session_state.chapter_index += 1
                 st.experimental_rerun()
+                st.stop()
 
 elif text_source == "Manual Input":
     doc = st.text_area("Enter text to split:", value=st.session_state.manual_input, height=300, key="manual_input")
@@ -116,6 +119,7 @@ with col_reset:
     if st.button("Reset"):
         st.session_state.clear()
         st.experimental_rerun()
+        st.stop()
 
 # -------------------------
 # Text Splitting
