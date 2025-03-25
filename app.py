@@ -81,11 +81,9 @@ if text_source == "Uploaded EPUB":
             st.success(f"Loaded {len(st.session_state.chapters)} chapters")
         with clear_col2:
             if st.button("🚮 Clear EPUB"):
-                st.session_state.update({
-                    "uploaded_epub": None,
-                    "chapters": [],
-                    "chapter_index": 0
-                })
+                st.session_state.uploaded_epub = None
+                st.session_state.chapters = []
+                st.session_state.chapter_index = 0
                 st.experimental_rerun()
 
         # Select and display chapter
@@ -121,14 +119,12 @@ col_reset, col_split = st.columns([1, 2])
 with col_reset:
     if st.button("Reset"):
         if text_source == "Manual Input":
-            st.session_state.update({"manual_input": ""})
+            st.session_state.manual_input = ""  # ✅ Corrected Reset Logic
         if text_source == "Uploaded EPUB":
-            st.session_state.update({
-                "uploaded_epub": None,
-                "chapters": [],
-                "chapter_index": 0
-            })
-        st.experimental_rerun()
+            st.session_state.uploaded_epub = None
+            st.session_state.chapters = []
+            st.session_state.chapter_index = 0
+        st.experimental_rerun()  # ✅ Refresh UI After Reset
 
 # -------------------------
 # Text Splitting
