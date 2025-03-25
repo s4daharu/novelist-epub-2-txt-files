@@ -1,6 +1,5 @@
 import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
-import code_snippets as code_snippets
 import tiktoken
 import streamlit.components.v1 as components
 from ebooklib import epub
@@ -34,7 +33,9 @@ def extract_chapters(epub_content):
 
     return chapters
 
-# Initialize session state variables
+# -------------------------
+# Initialize session state
+# -------------------------
 if 'chapter_index' not in st.session_state:
     st.session_state.chapter_index = 0
 if 'uploaded_epub' not in st.session_state:
@@ -45,15 +46,15 @@ if 'manual_input' not in st.session_state:
     st.session_state.manual_input = ""
 
 # -------------------------
-# Hard coded configuration
+# Configuration
 # -------------------------
 CHUNK_SIZE = 1950
 CHUNK_OVERLAP = 10
 LENGTH_FUNCTION_CHOICE = "Characters"  # Options: "Characters" or "Tokens"
-SPLITTER_CHOICE = "Character"           # Options: "Character", "RecursiveCharacter", or e.g. "Language.English"
-PREFIX = "translate following text from chinese to english\n"
+SPLITTER_CHOICE = "Character"          # Options: "Character", "RecursiveCharacter", or "Language.English"
+PREFIX = "translate following text from Chinese to English:\n"
 
-# Set up length function based on configuration
+# Set up length function
 if LENGTH_FUNCTION_CHOICE == "Characters":
     length_function = len
 elif LENGTH_FUNCTION_CHOICE == "Tokens":
@@ -64,7 +65,7 @@ elif LENGTH_FUNCTION_CHOICE == "Tokens":
 # -------------------------
 # Text Source Selection
 # -------------------------
-text_source = st.radio("Select text source for splitting:", ["Uploaded EPUB", "Manual Input"])
+text_source = st.radio("Select text source:", ["Uploaded EPUB", "Manual Input"])
 
 doc = ""
 
@@ -73,35 +74,31 @@ if text_source == "Uploaded EPUB":
     if uploaded_file:
         st.session_state.uploaded_epub = uploaded_file.read()
         st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
-    
+
     if st.session_state.chapters:
-        # Display a success message with chapter count and a clear button for the EPUB content
         clear_col1, clear_col2 = st.columns([3, 1])
         with clear_col1:
             st.success(f"Loaded {len(st.session_state.chapters)} chapters")
         with clear_col2:
             if st.button("🚮 Clear EPUB"):
-                st.session_state.uploaded_epub = None
-                st.session_state.chapters = []
-                st.session_state.chapter_index = 0
+                st.session_state.update({
+                    "uploaded_epub": None,
+                    "chapters": [],
+                    "chapter_index": 0
+                })
                 st.experimental_rerun()
-        
-        # Chapter selection and display
+
+        # Select and display chapter
         chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
-        selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
-                                        index=st.session_state.chapter_index)
+        selected_chapter = st.selectbox("Chapter Number", chapter_numbers, index=st.session_state.chapter_index)
         st.session_state.chapter_index = selected_chapter - 1
 
         st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
         doc = st.session_state.chapters[st.session_state.chapter_index]
-        
-        # Show the chapter text in a text area
-        st.text_area("Chapter Text", 
-                     value=doc,
-                     height=300,
-                     key=f"chapter_text_{st.session_state.chapter_index}")
-        
-        # Navigation buttons for chapters
+
+        st.text_area("Chapter Text", value=doc, height=300, key=f"chapter_text_{st.session_state.chapter_index}")
+
+        # Navigation buttons
         nav_col1, nav_col2 = st.columns([1, 1])
         with nav_col1:
             if st.button("◀ Previous", use_container_width=True):
@@ -113,30 +110,28 @@ if text_source == "Uploaded EPUB":
                 if st.session_state.chapter_index < len(st.session_state.chapters)-1:
                     st.session_state.chapter_index += 1
                     st.experimental_rerun()
-    else:
-        st.info("Upload an EPUB file to extract chapters.")
-        
+
 elif text_source == "Manual Input":
     doc = st.text_area("Enter text to split:", value=st.session_state.manual_input, height=300, key="manual_input")
 
 # -------------------------
-# Control Buttons Section
+# Reset and Split Buttons
 # -------------------------
 col_reset, col_split = st.columns([1, 2])
 with col_reset:
     if st.button("Reset"):
-        # Clear manual input if applicable
         if text_source == "Manual Input":
-            st.session_state.manual_input = ""
-        # Clear EPUB related state if applicable
+            st.session_state.update({"manual_input": ""})
         if text_source == "Uploaded EPUB":
-            st.session_state.uploaded_epub = None
-            st.session_state.chapters = []
-            st.session_state.chapter_index = 0
+            st.session_state.update({
+                "uploaded_epub": None,
+                "chapters": [],
+                "chapter_index": 0
+            })
         st.experimental_rerun()
 
 # -------------------------
-# Text Processing Section
+# Text Splitting
 # -------------------------
 if st.button("Split Text"):
     if not doc:
@@ -164,18 +159,14 @@ if st.button("Split Text"):
                     chunk_overlap=CHUNK_OVERLAP,
                     length_function=length_function
                 )
-            
+
             splits = splitter.split_text(doc)
             split_chunks = [PREFIX + s for s in splits]
-            
+
             for idx, chunk in enumerate(split_chunks, 1):
-                # Display each chunk in a text area
-                st.text_area(f"Chunk {idx}", 
-                             value=chunk,
-                             height=200,
-                             key=f"chunk_{st.session_state.chapter_index if text_source=='Uploaded EPUB' else 'manual'}_{idx}")
-                
-                # Copy button for the chunk
+                st.text_area(f"Chunk {idx}", value=chunk, height=200, key=f"chunk_{idx}")
+
+                # Copy button for each chunk
                 components.html(f"""
                 <div>
                     <button onclick="navigator.clipboard.writeText(`{chunk}`)"
