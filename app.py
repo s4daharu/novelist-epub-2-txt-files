@@ -80,7 +80,8 @@ if st.session_state.chapters:
             st.session_state.uploaded_epub = None
             st.session_state.chapters = []
             st.session_state.chapter_index = 0
-
+            st.rerun()
+    
     # Chapter selection and display
     chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
     selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
@@ -96,14 +97,18 @@ if st.session_state.chapters:
                  height=300,
                  key=f"chapter_text_{st.session_state.chapter_index}")
 
-    # Navigation buttons for chapters without explicit st.rerun()
+    # Navigation buttons for chapters
     nav_col1, nav_col2 = st.columns([1, 1])
     with nav_col1:
-        if st.button("◀ Previous", use_container_width=True) and st.session_state.chapter_index > 0:
-            st.session_state.chapter_index -= 1
+        if st.button("◀ Previous", use_container_width=True):
+            if st.session_state.chapter_index > 0:
+                st.session_state.chapter_index -= 1
+                st.rerun()
     with nav_col2:
-        if st.button("Next ▶", use_container_width=True) and st.session_state.chapter_index < len(st.session_state.chapters)-1:
-            st.session_state.chapter_index += 1
+        if st.button("Next ▶", use_container_width=True):
+            if st.session_state.chapter_index < len(st.session_state.chapters)-1:
+                st.session_state.chapter_index += 1
+                st.rerun()
 
 # -------------------------
 # Text Processing Section
