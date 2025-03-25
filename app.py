@@ -14,7 +14,7 @@ def extract_chapters(epub_content):
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(epub_content)
         tmp_file_name = tmp_file.name
-    
+
     try:
         book = epub.read_epub(tmp_file_name)
         for item in book.get_items():
@@ -31,7 +31,7 @@ def extract_chapters(epub_content):
                 chapters.append(text)
     finally:
         os.unlink(tmp_file_name)  # Clean up temporary file
-    
+
     return chapters
 
 # Initialize session state variables
@@ -60,55 +60,62 @@ elif LENGTH_FUNCTION_CHOICE == "Tokens":
         return len(enc.encode(text))
 
 # -------------------------
-# Use EPUB upload exclusively
+# Text Source Selection
 # -------------------------
+text_source = st.radio("Select text source for splitting:", ["Uploaded EPUB", "Manual Input"])
+
 doc = ""
-uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
 
-# Store uploaded file in session state
-if uploaded_file:
-    st.session_state.uploaded_epub = uploaded_file.read()
-    st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
-
-if st.session_state.chapters:
-    # Display a success message with chapter count and a clear button
-    clear_col1, clear_col2 = st.columns([3, 1])
-    with clear_col1:
-        st.success(f"Loaded {len(st.session_state.chapters)} chapters")
-    with clear_col2:
-        if st.button("🚮 Clear EPUB"):
-            st.session_state.uploaded_epub = None
-            st.session_state.chapters = []
-            st.session_state.chapter_index = 0
-            st.rerun()
+if text_source == "Uploaded EPUB":
+    uploaded_file = st.file_uploader("Upload an EPUB file", type=["epub"])
+    if uploaded_file:
+        st.session_state.uploaded_epub = uploaded_file.read()
+        st.session_state.chapters = extract_chapters(st.session_state.uploaded_epub)
     
-    # Chapter selection and display
-    chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
-    selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
-                                    index=st.session_state.chapter_index)
-    st.session_state.chapter_index = selected_chapter - 1
-
-    st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
-    doc = st.session_state.chapters[st.session_state.chapter_index]
-    
-    # Show the chapter text in a text area
-    st.text_area("Chapter Text", 
-                 value=doc,
-                 height=300,
-                 key=f"chapter_text_{st.session_state.chapter_index}")
-
-    # Navigation buttons for chapters
-    nav_col1, nav_col2 = st.columns([1, 1])
-    with nav_col1:
-        if st.button("◀ Previous", use_container_width=True):
-            if st.session_state.chapter_index > 0:
-                st.session_state.chapter_index -= 1
+    if st.session_state.chapters:
+        # Display a success message with chapter count and a clear button
+        clear_col1, clear_col2 = st.columns([3, 1])
+        with clear_col1:
+            st.success(f"Loaded {len(st.session_state.chapters)} chapters")
+        with clear_col2:
+            if st.button("🚮 Clear EPUB"):
+                st.session_state.uploaded_epub = None
+                st.session_state.chapters = []
+                st.session_state.chapter_index = 0
                 st.rerun()
-    with nav_col2:
-        if st.button("Next ▶", use_container_width=True):
-            if st.session_state.chapter_index < len(st.session_state.chapters)-1:
-                st.session_state.chapter_index += 1
-                st.rerun()
+        
+        # Chapter selection and display
+        chapter_numbers = list(range(1, len(st.session_state.chapters) + 1))
+        selected_chapter = st.selectbox("Chapter Number", chapter_numbers, 
+                                        index=st.session_state.chapter_index)
+        st.session_state.chapter_index = selected_chapter - 1
+
+        st.markdown(f"### Chapter {st.session_state.chapter_index + 1}")
+        doc = st.session_state.chapters[st.session_state.chapter_index]
+        
+        # Show the chapter text in a text area
+        st.text_area("Chapter Text", 
+                     value=doc,
+                     height=300,
+                     key=f"chapter_text_{st.session_state.chapter_index}")
+        
+        # Navigation buttons for chapters
+        nav_col1, nav_col2 = st.columns([1, 1])
+        with nav_col1:
+            if st.button("◀ Previous", use_container_width=True):
+                if st.session_state.chapter_index > 0:
+                    st.session_state.chapter_index -= 1
+                    st.rerun()
+        with nav_col2:
+            if st.button("Next ▶", use_container_width=True):
+                if st.session_state.chapter_index < len(st.session_state.chapters)-1:
+                    st.session_state.chapter_index += 1
+                    st.rerun()
+    else:
+        st.info("Upload an EPUB file to extract chapters.")
+        
+elif text_source == "Manual Input":
+    doc = st.text_area("Enter text to split:", height=300)
 
 # -------------------------
 # Text Processing Section
@@ -148,7 +155,7 @@ if st.button("Split Text"):
                 st.text_area(f"Chunk {idx}", 
                              value=chunk,
                              height=200,
-                             key=f"chunk_{st.session_state.chapter_index}_{idx}")
+                             key=f"chunk_{st.session_state.chapter_index if text_source=='Uploaded EPUB' else 'manual'}_{idx}")
                 
                 # Copy button for the chunk
                 components.html(f"""
