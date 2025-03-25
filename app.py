@@ -11,19 +11,6 @@ import os
 def extract_chapters(epub_content):
     """Extracts chapters from EPUB content bytes using a temporary file."""
     chapters = []
-    with tempfile.NamedTemporaryFile(import streamlit as st
-from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, Language
-import code_snippets as code_snippets
-import tiktoken
-import streamlit.components.v1 as components
-from ebooklib import epub
-from bs4 import BeautifulSoup
-import tempfile
-import os
-
-def extract_chapters(epub_content):
-    """Extracts chapters from EPUB content bytes using a temporary file."""
-    chapters = []
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(epub_content)
         tmp_file_name = tmp_file.name
