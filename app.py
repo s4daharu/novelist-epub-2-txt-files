@@ -62,15 +62,14 @@ def process_epub_to_txt(epub_file):
             if title:
                 title.extract()
             
-            # Process paragraphs and divs
+            # Process paragraphs
             text_blocks = []
-            for element in section.find_all(['p', 'div'], recursive=False):
-                block_text = element.get_text(separator="\n", strip=False)
-                stripped_text = block_text.strip()
-                if stripped_text:  # Skip empty blocks
-                    text_blocks.append(stripped_text)
+            for p in section.find_all('p', recursive=False):
+                block_text = p.get_text(separator="\n", strip=True)
+                if block_text.strip():
+                    text_blocks.append(block_text)
             
-            # Join with double line breaks between blocks
+            # Join with double line breaks between paragraphs
             chapter_text = "\n\n".join(text_blocks)
             chapters.append(chapter_text)
 
