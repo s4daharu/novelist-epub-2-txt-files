@@ -18,7 +18,7 @@ namespaces = {
 
 uploaded_file = st.file_uploader("Upload an EPUB3 file", type=["epub"])
 
-def process_epub_to_txt(epub_file):
+def process_epub_to_txt(epub_file, base_filename):
     # Create a temporary directory to extract the EPUB contents.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Extract all files from the EPUB archive.
@@ -52,10 +52,10 @@ def process_epub_to_txt(epub_file):
             chapters = [full_text]
         else:
             for section in chapter_sections:
-                # Get the complete text and split it into lines.
+                # Get the complete text with newline separators.
                 text = section.get_text(separator="\n").strip()
+                # Split into lines and remove the first line (assumed to be the title)
                 lines = text.splitlines()
-                # Remove the first line (assumed to be the title) if available.
                 if lines:
                     lines = lines[1:]
                 chapter_text = "\n".join(lines).strip()
@@ -66,7 +66,9 @@ def process_epub_to_txt(epub_file):
         os.makedirs(txt_dir, exist_ok=True)
         txt_files = []
         for i, chapter_text in enumerate(chapters, start=1):
-            filename = f"Chapter_{i}.txt"
+            # Format chapter number with two digits.
+            chapter_number = f"{i:02d}"
+            filename = f"{base_filename}{chapter_number}.txt"
             filepath = os.path.join(txt_dir, filename)
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(chapter_text)
@@ -82,14 +84,17 @@ def process_epub_to_txt(epub_file):
         return zip_buffer.getvalue(), len(txt_files)
 
 if uploaded_file:
+    # Extract base filename without extension.
+    base_filename = os.path.splitext(uploaded_file.name)[0]
     with st.spinner("Processing EPUB..."):
         try:
-            zip_data, num_chapters = process_epub_to_txt(uploaded_file)
+            zip_data, num_chapters = process_epub_to_txt(uploaded_file, base_filename)
             st.success(f"Extracted {num_chapters} chapters!")
+            zip_filename = f"{base_filename}.zip"
             st.download_button(
                 label="Download Chapters as ZIP",
                 data=zip_data,
-                file_name="chapters.zip",
+                file_name=zip_filename,
                 mime="application/zip"
             )
         except Exception as e:
