@@ -46,11 +46,20 @@ def process_epub_to_txt(epub_file):
         chapter_sections = soup.find_all('section', {'epub:type': 'chapter'})
         
         # If no chapters are found, treat the entire file as one chapter.
+        chapters = []
         if not chapter_sections:
             full_text = soup.get_text(separator="\n").strip()
             chapters = [full_text]
         else:
-            chapters = [section.get_text(separator="\n").strip() for section in chapter_sections]
+            for section in chapter_sections:
+                # Get the complete text and split it into lines.
+                text = section.get_text(separator="\n").strip()
+                lines = text.splitlines()
+                # Remove the first line (assumed to be the title) if available.
+                if lines:
+                    lines = lines[1:]
+                chapter_text = "\n".join(lines).strip()
+                chapters.append(chapter_text)
         
         # Create TXT files for each chapter in a temporary directory.
         txt_dir = os.path.join(temp_dir, 'txt_chapters')
