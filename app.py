@@ -35,6 +35,9 @@ def find_content_path(opf_root):
     raise ValueError("Main content file not found in spine")
 
 def process_epub_to_txt(epub_file):
+    epub_filename = epub_file.name
+    base_name, _ = os.path.splitext(epub_filename)
+    
     with tempfile.TemporaryDirectory() as temp_dir:
         with zipfile.ZipFile(epub_file, 'r') as z:
             z.extractall(temp_dir)
@@ -57,39 +60,37 @@ def process_epub_to_txt(epub_file):
         chapter_sections = soup.find_all('section', {'epub:type': 'chapter'})
         
         for section in chapter_sections:
-            # Remove title (h1)
             title = section.find('h1')
             if title:
                 title.extract()
             
-            # Process paragraphs
             text_blocks = []
             for p in section.find_all('p', recursive=False):
                 block_text = p.get_text(separator="\n", strip=True)
                 if block_text.strip():
                     text_blocks.append(block_text)
             
-            # Join with double line breaks between paragraphs
             chapter_text = "\n\n".join(text_blocks)
             chapters.append(chapter_text)
 
-        # Create ZIP archive
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w') as zipf:
             for i, text in enumerate(chapters, 1):
-                zipf.writestr(f"Chapter_{i}.txt", text.encode('utf-8'))
+                filename = f"{base_name}{i:02d}.txt"
+                zipf.writestr(filename, text.encode('utf-8'))
         zip_buffer.seek(0)
-        return zip_buffer.getvalue(), len(chapters)
+        
+        return zip_buffer.getvalue(), len(chapters), base_name
 
 if uploaded_file:
     with st.spinner("Processing EPUB..."):
         try:
-            zip_data, num_chapters = process_epub_to_txt(uploaded_file)
-            st.success(f"Extracted {num_chapters} chapters with proper formatting!")
+            zip_data, num_chapters, base_name = process_epub_to_txt(uploaded_file)
+            st.success(f"Extracted {num_chapters} chapters from {base_name}.epub")
             st.download_button(
-                label="Download Chapters as ZIP",
+                label=f"Download {base_name}.zip",
                 data=zip_data,
-                file_name="chapters.zip",
+                file_name=f"{base_name}.zip",
                 mime="application/zip"
             )
         except Exception as e:
