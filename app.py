@@ -26,11 +26,11 @@ if uploaded_file:
             temp_dir = tempfile.TemporaryDirectory()
             file_ext = uploaded_file.name.split('.')[-1].lower()
             chapters = []
-            current_chapter = []
 
             # DOCX Processing
             if file_ext == 'docx':
                 doc = Document(uploaded_file)
+                current_chapter = []
                 for para in doc.paragraphs:
                     if is_page_break(para):
                         if current_chapter:
@@ -41,37 +41,53 @@ if uploaded_file:
                 if current_chapter:
                     chapters.append(current_chapter)
 
-            # EPUB Processing
+            # EPUB Processing (OPS/Book structure)
             elif file_ext == 'epub':
                 book = epub.read_epub(uploaded_file)
-                # Process each document item (typically representing a chapter)
-                for item in book.get_items_of_type(epub.ITEM_DOCUMENT):
-                    content = item.get_content()
-                    soup = BeautifulSoup(content, 'html.parser')
-                    paras = [p.get_text().strip() for p in soup.find_all('p') if p.get_text().strip()]
-                    if paras:
-                        chapters.append(paras)
-                # If no chapters found, treat entire book as a single chapter.
-                if not chapters:
-                    st.warning("No chapters found in EPUB! Treating entire content as a single chapter.")
-                    all_text = ""
-                    for item in book.get_items_of_type(epub.ITEM_DOCUMENT):
-                        soup = BeautifulSoup(item.get_content(), 'html.parser')
-                        all_text += soup.get_text(separator="\n")
-                    chapters = [all_text.splitlines()]
+                content_item = None
+                # Find the content file containing chapters (usually "content.xhtml")
+                for item in book.get_items_of_type(epub.EpubHtml):
+                    # Check if the item's href contains "content.xhtml"
+                    if "content.xhtml" in item.href:
+                        content_item = item
+                        break
 
+                if content_item is None:
+                    st.error("Could not locate the content.xhtml file in the EPUB.")
+                    raise ValueError("Missing content.xhtml in EPUB.")
+
+                # Parse the content file with BeautifulSoup.
+                soup = BeautifulSoup(content_item.get_content(), 'html.parser')
+                # Find all sections that are marked as chapters.
+                section_list = soup.find_all('section', attrs={"epub:type": "chapter"})
+                if not section_list:
+                    st.warning("No chapter sections found in content.xhtml; treating entire file as one chapter.")
+                    # Fallback: use all text from the content file.
+                    full_text = soup.get_text(separator="\n").strip()
+                    chapters.append(full_text.splitlines())
+                else:
+                    # For each section, extract text from paragraphs.
+                    for sec in section_list:
+                        paras = []
+                        for p in sec.find_all('p'):
+                            text_line = p.get_text().strip()
+                            if text_line:
+                                paras.append(text_line)
+                        if paras:
+                            chapters.append(paras)
             else:
                 st.error("Unsupported file format")
                 raise ValueError("Unsupported file format")
 
-            # Handle files with no page breaks or chapters extracted.
+            # Fallback in case no chapters were found
             if not chapters:
-                st.warning("No page breaks or chapters found! Treating as single chapter.")
-                chapters = [current_chapter]
+                st.warning("No chapters found! Treating the file as a single chapter.")
+                chapters = [["No content extracted"]]
 
-            # Create text files for each chapter (skipping the first paragraph if present)
+            # Create text files for each chapter (optionally skipping the first paragraph)
             for i, chapter in enumerate(chapters, 1):
                 filename = f"Chapter_{i}.txt"
+                # If the chapter has more than one paragraph, skip the first one (optional)
                 content = chapter[1:] if len(chapter) > 1 else chapter
                 with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
                     f.write("\n".join(content))
