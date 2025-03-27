@@ -16,8 +16,7 @@ def is_page_break(paragraph):
     """Check if a DOCX paragraph contains a page break"""
     for run in paragraph.runs:
         for elem in run._element:
-            if (elem.tag == 
-                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br" 
+            if (elem.tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br" 
                 and elem.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type") == "page"):
                 return True
     return False
@@ -25,9 +24,9 @@ def is_page_break(paragraph):
 def is_page_break_odt(paragraph):
     """Check if an ODT paragraph contains a page break"""
     for node in paragraph.childNodes:
-        if hasattr(node, 'qname') and node.qname == text.LineBreak.qname:
-            if node.getAttribute('type') == 'page':
-                return True
+        # Instead of using text.LineBreak.qname, check the node's name directly.
+        if node.nodeName == "text:line-break" and node.getAttribute('type') == 'page':
+            return True
     return False
 
 if uploaded_file:
@@ -54,10 +53,10 @@ if uploaded_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".odt") as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_path = tmp_file.name
-                
+
                 odt_doc = load(tmp_path)
                 paragraphs = odt_doc.text.getElementsByType(text.P)
-                
+
                 for para in paragraphs:
                     if is_page_break_odt(para):
                         if current_chapter:
@@ -67,7 +66,7 @@ if uploaded_file:
                         text_content = extractText(para).strip()
                         if text_content:  # Skip empty paragraphs
                             current_chapter.append(text_content)
-                
+
                 os.unlink(tmp_path)
 
             else:
@@ -109,7 +108,7 @@ if uploaded_file:
 
         except Exception as e:
             st.error(f"Processing error: {str(e)}")
-        
+
         finally:
             temp_dir.cleanup()
 else:
