@@ -1,4 +1,4 @@
 streamlit
 python-docx
+ebooklib
 beautifulsoup4
-lxml
