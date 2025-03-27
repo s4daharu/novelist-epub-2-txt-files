@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 
 st.title("EPUB3 Chapter Splitter to TXT Files")
 
-# Namespaces for XML parsing
 namespaces = {
     'epub': 'http://www.idpf.org/2007/ops',
     'dc': 'http://purl.org/dc/elements/1.1/',
@@ -19,22 +18,26 @@ namespaces = {
 uploaded_file = st.file_uploader("Upload an EPUB3 file", type=["epub"])
 
 def find_content_path(opf_root):
-    """Find main content file from OPF spine"""
+    """Find main content file, skipping navigation files"""
     spine = opf_root.find(".//opf:spine", namespaces)
     if spine is None:
         raise ValueError("Spine not found in package.opf")
     
-    # Find first XHTML content item in spine
     for itemref in spine.findall(".//opf:itemref", namespaces):
         item_id = itemref.get('idref')
         item = opf_root.find(f".//opf:item[@id='{item_id}']", namespaces)
-        if item is not None and item.get('media-type') == 'application/xhtml+xml':
-            return item.get('href')
+        if item is not None:
+            media_type = item.get('media-type')
+            properties = item.get('properties', '')
+            # Skip navigation files (like table of contents)
+            if 'nav' in properties:
+                continue
+            if media_type == 'application/xhtml+xml':
+                return item.get('href')
     raise ValueError("Main content file not found in spine")
 
 def process_epub_to_txt(epub_file):
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Extract EPUB contents
         with zipfile.ZipFile(epub_file, 'r') as z:
             z.extractall(temp_dir)
         
@@ -42,52 +45,33 @@ def process_epub_to_txt(epub_file):
         opf_path = os.path.join(temp_dir, 'OPS', 'package.opf')
         if not os.path.exists(opf_path):
             opf_path = os.path.join(temp_dir, 'package.opf')
-        
         tree = ET.parse(opf_path)
         root = tree.getroot()
         
-        # Find main content file path
+        # Find main content file path (now skips navigation files)
         content_href = find_content_path(root)
         content_path = os.path.join(temp_dir, content_href)
         
         # Parse content.xhtml with BeautifulSoup
         with open(content_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'html.parser')  # Use HTML parser
+            soup = BeautifulSoup(f, 'html.parser')
 
-        # Find all chapters
+        # Extract chapters
         chapters = []
         chapter_sections = soup.find_all('section', {'epub:type': 'chapter'})
-        
-        # Process each chapter
         for section in chapter_sections:
-            # Remove title element (h1)
+            # Remove title (h1) and extract text
             title = section.find('h1')
             if title:
                 title.extract()
-            
-            # Get cleaned text content
-            text = section.get_text(separator="\n", strip=True)
-            chapters.append(text)
+            chapters.append(section.get_text(separator="\n", strip=True))
         
-        # Create TXT files in temporary directory
-        txt_dir = os.path.join(temp_dir, 'txt_chapters')
-        os.makedirs(txt_dir, exist_ok=True)
-        txt_files = []
-        for i, chapter_text in enumerate(chapters, 1):
-            filename = f"Chapter_{i}.txt"
-            filepath = os.path.join(txt_dir, filename)
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(chapter_text)
-            txt_files.append(filepath)
-        
-        # Create ZIP archive
+        # Create TXT files and ZIP archive
         zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for filepath in txt_files:
-                arcname = os.path.basename(filepath)
-                zipf.write(filepath, arcname)
+        with zipfile.ZipFile(zip_buffer, 'w') as zipf:
+            for i, text in enumerate(chapters, 1):
+                zipf.writestr(f"Chapter_{i}.txt", text.encode('utf-8'))
         zip_buffer.seek(0)
-        
         return zip_buffer.getvalue(), len(chapters)
 
 if uploaded_file:
