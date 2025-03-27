@@ -5,9 +5,19 @@ import zipfile
 from io import BytesIO
 import tempfile
 
-st.title("DOCX Chapter Splitter")
+st.title("DOCX Chapter Splitter (Page Break Edition)")
 
 uploaded_file = st.file_uploader("Upload a DOCX file", type=["docx"])
+
+def is_page_break(paragraph):
+    """Check if a paragraph contains a page break"""
+    for run in paragraph.runs:
+        for elem in run._element:
+            if (elem.tag == 
+                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br" 
+                and elem.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type") == "page"):
+                return True
+    return False
 
 if uploaded_file:
     with st.spinner("Processing..."):
@@ -15,31 +25,32 @@ if uploaded_file:
             temp_dir = tempfile.TemporaryDirectory()
             doc = Document(uploaded_file)
             
-            chapters = {}
-            current_chapter = None
+            chapters = []
+            current_chapter = []
             
             for para in doc.paragraphs:
-                # Allow multiple heading styles (adjust as needed)
-                if para.style.name in ["Heading 1", "Heading 2"]:
-                    current_chapter = para.text.strip()
-                    chapters[current_chapter] = []
-                elif current_chapter:
-                    chapters[current_chapter].append(para.text.strip())
+                if is_page_break(para):
+                    # Save current chapter and start new one
+                    if current_chapter:
+                        chapters.append(current_chapter)
+                        current_chapter = []
+                else:
+                    current_chapter.append(para.text.strip())
             
-            # Debugging output
-            st.write(f"Detected {len(chapters)} chapters:")
-            st.write(list(chapters.keys()))
+            # Add the last chapter
+            if current_chapter:
+                chapters.append(current_chapter)
             
-            # Handle documents with no headings
+            # Handle case with no page breaks
             if not chapters:
-                st.warning("No chapters detected! Treating as a single document.")
-                chapters["Full_Document"] = [para.text.strip() for para in doc.paragraphs]
+                st.warning("No page breaks found! Treating as single chapter.")
+                chapters = [current_chapter]
             
-            # Save to text files
-            for chapter, content in chapters.items():
-                safe_title = "".join([c if c.isalnum() else "_" for c in chapter]) + ".txt"
-                with open(os.path.join(temp_dir.name, safe_title), "w", encoding="utf-8") as f:
-                    f.write("\n".join(content))
+            # Create text files
+            for i, chapter in enumerate(chapters, 1):
+                filename = f"Chapter_{i}.txt"
+                with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
+                    f.write("\n".join(chapter))
             
             # Create ZIP
             zip_buffer = BytesIO()
@@ -48,9 +59,9 @@ if uploaded_file:
                     for file in files:
                         zipf.write(os.path.join(root, file), arcname=file)
             
-            st.success(f"Successfully split into {len(chapters)} chapters!")
+            st.success(f"Split into {len(chapters)} chapters successfully!")
             st.download_button(
-                label="Download ZIP",
+                label="Download Chapters",
                 data=zip_buffer.getvalue(),
                 file_name="chapters.zip",
                 mime="application/zip"
