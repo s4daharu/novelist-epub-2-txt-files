@@ -1,153 +1,89 @@
 import streamlit as st
-from docx import Document
-from bs4 import BeautifulSoup
-import os
 import zipfile
+import xml.etree.ElementTree as ET
 from io import BytesIO
+import os
 import tempfile
-import re
+from bs4 import BeautifulSoup
 
-st.title("DOCX/EPUB Chapter Splitter")
-uploaded_file = st.file_uploader("Upload a DOCX or EPUB file", type=["docx", "epub"])
+st.title("EPUB3 Chapter Splitter to TXT Files")
 
-def is_page_break(paragraph):
-    """Check if a DOCX paragraph contains a page break"""
-    for run in paragraph.runs:
-        for elem in run._element:
-            if (elem.tag == 
-                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br" 
-                and elem.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type") == "page"):
-                return True
-    return False
+# Register necessary namespaces for parsing package.opf.
+namespaces = {
+    'epub': 'http://www.idpf.org/2007/ops',
+    'dc': 'http://purl.org/dc/elements/1.1/',
+    'opf': 'http://www.idpf.org/2007/opf',
+    'html': 'http://www.w3.org/1999/xhtml'
+}
 
-def parse_epub_toc(epub_zip):
-    """Parse EPUB3/2 TOC specifically for your structure"""
-    toc_entries = []
-    
-    # Check for EPUB3 XHTML TOC
-    if 'OPS/table-of-contents.xhtml' in epub_zip.namelist():
-        with epub_zip.open('OPS/table-of-contents.xhtml') as toc_file:
-            soup = BeautifulSoup(toc_file, 'lxml')
-            for a in soup.find_all('a', href=True):
-                title = a.get_text(strip=True)
-                src = a['href']
-                toc_entries.append((title, src))
-    
-    # Fallback to EPUB2 NCX TOC
-    elif 'OPS/table-of-contents.ncx' in epub_zip.namelist():
-        with epub_zip.open('OPS/table-of-contents.ncx') as ncx_file:
-            soup = BeautifulSoup(ncx_file, 'xml')
-            for nav_point in soup.find_all('navPoint'):
-                title = nav_point.navLabel.text.strip()
-                src = nav_point.content['src']
-                toc_entries.append((title, src))
-    
-    return toc_entries
+uploaded_file = st.file_uploader("Upload an EPUB3 file", type=["epub"])
 
-def extract_epub_chapters(epub_path):
-    """Extract chapters specifically for your content.xhtml structure"""
-    chapters = []
-    with zipfile.ZipFile(epub_path) as epub_zip:
-        toc_entries = parse_epub_toc(epub_zip)
+def process_epub_to_txt(epub_file):
+    # Create a temporary directory to extract the EPUB contents.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Extract all files from the EPUB archive.
+        with zipfile.ZipFile(epub_file, 'r') as z:
+            z.extractall(temp_dir)
         
-        with tempfile.TemporaryDirectory() as extract_dir:
-            epub_zip.extractall(extract_dir)
-            
-            for title, src in toc_entries:
-                # Handle both full paths and fragment identifiers
-                src_parts = src.split('#', 1)
-                html_file = src_parts[0] if src_parts[0] else 'OPS/content.xhtml'
-                fragment_id = src_parts[1] if len(src_parts) > 1 else None
-                
-                html_path = os.path.join(extract_dir, html_file)
-                
-                if not os.path.exists(html_path):
-                    continue
-                
-                with open(html_path, 'r', encoding='utf-8') as f:
-                    soup = BeautifulSoup(f, 'lxml')
-                
-                # Find the chapter section
-                if fragment_id:
-                    chapter_section = soup.find(id=fragment_id)
-                    if chapter_section and chapter_section.parent.name == 'section':
-                        # Get full chapter content
-                        chapter_content = chapter_section.parent.get_text(separator='\n', strip=True)
-                        chapters.append((title, [chapter_content]))
-                else:
-                    # Handle full HTML content
-                    sections = soup.find_all('section', {'epub:type': 'chapter'})
-                    for section in sections:
-                        chapter_text = section.get_text(separator='\n', strip=True)
-                        chapters.append((title, [chapter_text]))
-    
-    return chapters
+        # Locate the package.opf file (assumed to be in OPS folder).
+        package_path = os.path.join(temp_dir, 'OPS', 'package.opf')
+        tree = ET.parse(package_path)
+        root = tree.getroot()
+        
+        # Find the manifest item with id 'book-content' which points to the content.xhtml file.
+        content_item = root.find(".//opf:item[@id='book-content']", namespaces)
+        if content_item is None:
+            raise ValueError("Content item with id 'book-content' not found in package.opf")
+        content_href = content_item.get('href')
+        # Construct the full path to the content file (e.g., OPS/book/content.xhtml).
+        content_path = os.path.join(temp_dir, 'OPS', content_href)
+        
+        # Parse the content.xhtml file using BeautifulSoup.
+        with open(content_path, 'r', encoding='utf-8') as f:
+            soup = BeautifulSoup(f, 'xml')
+        
+        # Find all chapter sections by looking for <section> elements with epub:type="chapter".
+        chapter_sections = soup.find_all('section', {'epub:type': 'chapter'})
+        
+        # If no chapters are found, treat the entire file as one chapter.
+        if not chapter_sections:
+            full_text = soup.get_text(separator="\n").strip()
+            chapters = [full_text]
+        else:
+            chapters = [section.get_text(separator="\n").strip() for section in chapter_sections]
+        
+        # Create TXT files for each chapter in a temporary directory.
+        txt_dir = os.path.join(temp_dir, 'txt_chapters')
+        os.makedirs(txt_dir, exist_ok=True)
+        txt_files = []
+        for i, chapter_text in enumerate(chapters, start=1):
+            filename = f"Chapter_{i}.txt"
+            filepath = os.path.join(txt_dir, filename)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(chapter_text)
+            txt_files.append(filepath)
+        
+        # Create a ZIP archive containing all TXT chapter files.
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for filepath in txt_files:
+                arcname = os.path.basename(filepath)
+                zipf.write(filepath, arcname=arcname)
+        zip_buffer.seek(0)
+        return zip_buffer.getvalue(), len(txt_files)
 
 if uploaded_file:
-    with st.spinner("Processing..."):
+    with st.spinner("Processing EPUB..."):
         try:
-            temp_dir = tempfile.TemporaryDirectory()
-            file_ext = uploaded_file.name.split('.')[-1].lower()
-            chapters = []
-            
-            # DOCX Processing
-            if file_ext == 'docx':
-                doc = Document(uploaded_file)
-                current_chapter = []
-                for para in doc.paragraphs:
-                    if is_page_break(para):
-                        if current_chapter:
-                            chapters.append(current_chapter)
-                            current_chapter = []
-                    else:
-                        current_chapter.append(para.text.strip())
-                if current_chapter:
-                    chapters.append(current_chapter)
-            
-            # EPUB Processing
-            elif file_ext == 'epub':
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".epub") as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    chapters = extract_epub_chapters(tmp_file.name)
-                os.unlink(tmp_file.name)
-            
-            else:
-                st.error("Unsupported file format")
-                raise ValueError("Unsupported file format")
-            
-            # Handle files with no chapters
-            if not chapters:
-                st.warning("No chapters found! Creating single chapter.")
-                chapters = [(f"Chapter 1", ["No content detected"])]
-            
-            # Create text files with titles
-            for i, (title, content) in enumerate(chapters, 1):
-                filename = f"{title}.txt" if title else f"Chapter_{i}.txt"
-                # Sanitize filename
-                filename = re.sub(r'[\\/*?:"<>|]', "", filename)
-                with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
-                    f.write("\n".join(content))
-            
-            # Create ZIP archive
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, _, files in os.walk(temp_dir.name):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        zipf.write(file_path, arcname=file)
-            
-            st.success(f"Split into {len(chapters)} chapters successfully!")
+            zip_data, num_chapters = process_epub_to_txt(uploaded_file)
+            st.success(f"Extracted {num_chapters} chapters!")
             st.download_button(
-                label="Download Chapters",
-                data=zip_buffer.getvalue(),
+                label="Download Chapters as ZIP",
+                data=zip_data,
                 file_name="chapters.zip",
                 mime="application/zip"
             )
-        
         except Exception as e:
-            st.error(f"Processing error: {str(e)}")
-        
-        finally:
-            temp_dir.cleanup()
+            st.error(f"Error processing EPUB: {e}")
 else:
-    st.info("Please upload a DOCX or EPUB file to begin")
+    st.info("Please upload an EPUB3 file to begin")
