@@ -52,10 +52,10 @@ if uploaded_file:
                 book = epub.read_epub(epub_path)
                 os.unlink(epub_path)  # Clean up the temporary file
 
-                # Look for the content file; iterate through all document items
+                # Look for the content file; iterate through all items and check if they are an instance of epub.EpubHtml.
                 content_item = None
                 for item in book.get_items():
-                    if item.get_type() == epub.ITEM_DOCUMENT and "content.xhtml" in item.href.lower():
+                    if isinstance(item, epub.EpubHtml) and "content.xhtml" in item.href.lower():
                         content_item = item
                         break
 
