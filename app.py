@@ -27,7 +27,7 @@ if uploaded_file:
             file_ext = uploaded_file.name.split('.')[-1].lower()
             chapters = []
 
-            # DOCX Processing
+            # DOCX Processing remains unchanged.
             if file_ext == 'docx':
                 doc = Document(uploaded_file)
                 current_chapter = []
@@ -41,14 +41,21 @@ if uploaded_file:
                 if current_chapter:
                     chapters.append(current_chapter)
 
-            # EPUB Processing (OPS/Book structure)
+            # EPUB Processing for EPUB3 (OPS/Book structure)
             elif file_ext == 'epub':
-                book = epub.read_epub(uploaded_file)
+                # Write the uploaded file to a temporary file.
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".epub") as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_file.flush()
+                    epub_path = tmp_file.name
+
+                book = epub.read_epub(epub_path)
+                os.unlink(epub_path)  # Clean up the temporary file
+
+                # Look for the content file; typically its href contains "content.xhtml"
                 content_item = None
-                # Find the content file containing chapters (usually "content.xhtml")
                 for item in book.get_items_of_type(epub.EpubHtml):
-                    # Check if the item's href contains "content.xhtml"
-                    if "content.xhtml" in item.href:
+                    if "content.xhtml" in item.href.lower():
                         content_item = item
                         break
 
@@ -62,11 +69,9 @@ if uploaded_file:
                 section_list = soup.find_all('section', attrs={"epub:type": "chapter"})
                 if not section_list:
                     st.warning("No chapter sections found in content.xhtml; treating entire file as one chapter.")
-                    # Fallback: use all text from the content file.
                     full_text = soup.get_text(separator="\n").strip()
                     chapters.append(full_text.splitlines())
                 else:
-                    # For each section, extract text from paragraphs.
                     for sec in section_list:
                         paras = []
                         for p in sec.find_all('p'):
@@ -79,20 +84,20 @@ if uploaded_file:
                 st.error("Unsupported file format")
                 raise ValueError("Unsupported file format")
 
-            # Fallback in case no chapters were found
+            # If no chapters were found, use a fallback.
             if not chapters:
                 st.warning("No chapters found! Treating the file as a single chapter.")
                 chapters = [["No content extracted"]]
 
-            # Create text files for each chapter (optionally skipping the first paragraph)
+            # Create a text file for each chapter.
             for i, chapter in enumerate(chapters, 1):
                 filename = f"Chapter_{i}.txt"
-                # If the chapter has more than one paragraph, skip the first one (optional)
+                # Optionally skip the first paragraph if desired.
                 content = chapter[1:] if len(chapter) > 1 else chapter
                 with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
                     f.write("\n".join(content))
 
-            # Create ZIP archive for download.
+            # Create a ZIP archive containing all chapter text files.
             zip_buffer = BytesIO()
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(temp_dir.name):
