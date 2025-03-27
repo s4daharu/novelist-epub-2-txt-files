@@ -5,8 +5,9 @@ import os
 import zipfile
 from io import BytesIO
 import tempfile
+import re
 
-st.title("DOCX/EPUB Chapter Splitter (Page Break Edition)")
+st.title("DOCX/EPUB Chapter Splitter (TOC/Page Break Edition)")
 uploaded_file = st.file_uploader("Upload a DOCX or EPUB file", type=["docx", "epub"])
 
 def is_page_break(paragraph):
@@ -19,45 +20,65 @@ def is_page_break(paragraph):
                 return True
     return False
 
+def parse_epub_toc(epub_path):
+    """Parse EPUB TOC to get chapter titles and their source files"""
+    toc_entries = []
+    with zipfile.ZipFile(epub_path) as epub_zip:
+        # Check for both EPUB 2 (toc.ncx) and EPUB 3 (nav.xhtml) TOC files
+        if 'OEBPS/toc.ncx' in epub_zip.namelist():
+            with epub_zip.open('OEBPS/toc.ncx') as toc_file:
+                soup = BeautifulSoup(toc_file, 'xml')
+                for nav_point in soup.find_all('navPoint'):
+                    title = nav_point.navLabel.text.strip()
+                    src = nav_point.content['src']
+                    toc_entries.append((title, src))
+        elif 'EPUB/nav.xhtml' in epub_zip.namelist():
+            with epub_zip.open('EPUB/nav.xhtml') as nav_file:
+                soup = BeautifulSoup(nav_file, 'lxml')
+                for a in soup.nav.find_all('a', href=True):
+                    title = a.text.strip()
+                    src = a['href']
+                    toc_entries.append((title, src))
+    return toc_entries
+
 def extract_epub_chapters(epub_path):
-    """Extract chapters from EPUB using CSS page-break detection"""
+    """Extract chapters using TOC entries"""
     chapters = []
-    current_chapter = []
+    toc_entries = parse_epub_toc(epub_path)
     
     with zipfile.ZipFile(epub_path) as epub_zip:
-        # Extract EPUB contents to temporary directory
         with tempfile.TemporaryDirectory() as extract_dir:
             epub_zip.extractall(extract_dir)
             
-            # Find all HTML/XHTML files
-            html_files = []
-            for root, _, files in os.walk(extract_dir):
-                for file in files:
-                    if file.endswith(('.html', '.xhtml')):
-                        html_files.append(os.path.join(root, file))
-            
-            for html_file in html_files:
-                with open(html_file, 'r', encoding='utf-8') as f:
+            for title, src in toc_entries:
+                # Handle both direct HTML references and fragment identifiers
+                if '#' in src:
+                    html_file, fragment = src.split('#', 1)
+                else:
+                    html_file = src
+                    fragment = None
+                
+                html_path = os.path.join(extract_dir, html_file)
+                
+                if not os.path.exists(html_path):
+                    continue
+                
+                with open(html_path, 'r', encoding='utf-8') as f:
                     soup = BeautifulSoup(f, 'lxml')
                 
-                for element in soup.descendants:
-                    if isinstance(element, str):
-                        continue  # Skip text nodes
-                    
-                    style = element.get('style', '')
-                    if 'page-break-before: always' in style or 'page-break-after: always' in style:
-                        if current_chapter:
-                            chapters.append(current_chapter)
-                            current_chapter = []
-                    else:
-                        text_content = element.get_text(strip=True, separator=' ')
-                        if text_content:
-                            current_chapter.append(text_content)
-                
-                # Add remaining content as final chapter in file
-                if current_chapter:
-                    chapters.append(current_chapter)
-                    current_chapter = []
+                # Find content based on fragment ID
+                if fragment:
+                    content = soup.find(id=fragment)
+                    if content:
+                        chapter_text = [content.get_text(separator='\n', strip=True)]
+                        chapters.append((title, chapter_text))
+                else:
+                    # If no fragment, take the entire HTML content
+                    body = soup.find('body')
+                    if body:
+                        chapter_text = [p.get_text(separator='\n', strip=True) 
+                                       for p in body.find_all(['p', 'h1', 'h2', 'h3'])]
+                        chapters.append((title, chapter_text))
     
     return chapters
 
@@ -96,13 +117,13 @@ if uploaded_file:
             # Handle files with no chapters
             if not chapters:
                 st.warning("No chapters found! Creating single chapter.")
-                chapters = [chapters]
+                chapters = [(f"Chapter 1", ["No content detected"])]
             
-            # Create text files (excluding first paragraph)
-            for i, chapter in enumerate(chapters, 1):
-                filename = f"Chapter_{i}.txt"
-                # Skip first paragraph if exists
-                content = chapter[1:] if len(chapter) > 1 else chapter
+            # Create text files with titles
+            for i, (title, content) in enumerate(chapters, 1):
+                filename = f"{title}.txt" if title else f"Chapter_{i}.txt"
+                # Remove invalid characters from filename
+                filename = re.sub(r'[\\/*?:"<>|]', "", filename)
                 with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
                     f.write("\n".join(content))
             
