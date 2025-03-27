@@ -18,7 +18,7 @@ namespaces = {
 uploaded_file = st.file_uploader("Upload an EPUB3 file", type=["epub"])
 
 def find_content_path(opf_root):
-    """Find main content file, skipping navigation files"""
+    """Find main content file while skipping navigation files"""
     spine = opf_root.find(".//opf:spine", namespaces)
     if spine is None:
         raise ValueError("Spine not found in package.opf")
@@ -38,6 +38,7 @@ def find_content_path(opf_root):
 
 def process_epub_to_txt(epub_file):
     with tempfile.TemporaryDirectory() as temp_dir:
+        # Extract EPUB contents
         with zipfile.ZipFile(epub_file, 'r') as z:
             z.extractall(temp_dir)
         
@@ -45,12 +46,18 @@ def process_epub_to_txt(epub_file):
         opf_path = os.path.join(temp_dir, 'OPS', 'package.opf')
         if not os.path.exists(opf_path):
             opf_path = os.path.join(temp_dir, 'package.opf')
+        
+        # Get the directory containing package.opf
+        opf_dir = os.path.dirname(opf_path)
+        
         tree = ET.parse(opf_path)
         root = tree.getroot()
         
-        # Find main content file path (now skips navigation files)
+        # Find main content file path
         content_href = find_content_path(root)
-        content_path = os.path.join(temp_dir, content_href)
+        
+        # Construct full path relative to package.opf location
+        content_path = os.path.join(opf_dir, content_href)
         
         # Parse content.xhtml with BeautifulSoup
         with open(content_path, 'r', encoding='utf-8') as f:
@@ -66,7 +73,7 @@ def process_epub_to_txt(epub_file):
                 title.extract()
             chapters.append(section.get_text(separator="\n", strip=True))
         
-        # Create TXT files and ZIP archive
+        # Create ZIP archive
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w') as zipf:
             for i, text in enumerate(chapters, 1):
