@@ -7,7 +7,7 @@ from io import BytesIO
 import tempfile
 import re
 
-st.title("DOCX/EPUB Chapter Splitter (TOC/Page Break Edition)")
+st.title("DOCX/EPUB Chapter Splitter (Enhanced TOC Support)")
 uploaded_file = st.file_uploader("Upload a DOCX or EPUB file", type=["docx", "epub"])
 
 def is_page_break(paragraph):
@@ -20,43 +20,46 @@ def is_page_break(paragraph):
                 return True
     return False
 
-def parse_epub_toc(epub_path):
-    """Parse EPUB TOC to get chapter titles and their source files"""
+def parse_epub_toc(epub_zip):
+    """Parse EPUB3/2 TOC with enhanced detection"""
     toc_entries = []
-    with zipfile.ZipFile(epub_path) as epub_zip:
-        # Check for both EPUB 2 (toc.ncx) and EPUB 3 (nav.xhtml) TOC files
-        if 'OEBPS/toc.ncx' in epub_zip.namelist():
-            with epub_zip.open('OEBPS/toc.ncx') as toc_file:
-                soup = BeautifulSoup(toc_file, 'xml')
-                for nav_point in soup.find_all('navPoint'):
-                    title = nav_point.navLabel.text.strip()
-                    src = nav_point.content['src']
-                    toc_entries.append((title, src))
-        elif 'EPUB/nav.xhtml' in epub_zip.namelist():
-            with epub_zip.open('EPUB/nav.xhtml') as nav_file:
-                soup = BeautifulSoup(nav_file, 'lxml')
-                for a in soup.nav.find_all('a', href=True):
-                    title = a.text.strip()
+    
+    # Check for EPUB3 NAV based TOC
+    if 'EPUB/nav.xhtml' in epub_zip.namelist():
+        with epub_zip.open('EPUB/nav.xhtml') as nav_file:
+            soup = BeautifulSoup(nav_file, 'lxml')
+            nav = soup.find('nav', attrs={'epub:type': 'toc'})
+            if nav:
+                for a in nav.find_all('a', href=True):
+                    title = a.get_text(strip=True)
                     src = a['href']
                     toc_entries.append((title, src))
+    
+    # Fallback to EPUB2 NCX TOC
+    elif 'OEBPS/toc.ncx' in epub_zip.namelist():
+        with epub_zip.open('OEBPS/toc.ncx') as ncx_file:
+            soup = BeautifulSoup(ncx_file, 'xml')
+            for nav_point in soup.find_all('navPoint'):
+                title = nav_point.navLabel.text.strip()
+                src = nav_point.content['src']
+                toc_entries.append((title, src))
+    
     return toc_entries
 
 def extract_epub_chapters(epub_path):
-    """Extract chapters using TOC entries"""
+    """Extract chapters using enhanced TOC parsing"""
     chapters = []
-    toc_entries = parse_epub_toc(epub_path)
-    
     with zipfile.ZipFile(epub_path) as epub_zip:
+        toc_entries = parse_epub_toc(epub_zip)
+        
         with tempfile.TemporaryDirectory() as extract_dir:
             epub_zip.extractall(extract_dir)
             
             for title, src in toc_entries:
-                # Handle both direct HTML references and fragment identifiers
-                if '#' in src:
-                    html_file, fragment = src.split('#', 1)
-                else:
-                    html_file = src
-                    fragment = None
+                # Handle both full paths and fragment identifiers
+                src_parts = src.split('#', 1)
+                html_file = src_parts[0]
+                fragment_id = src_parts[1] if len(src_parts) > 1 else None
                 
                 html_path = os.path.join(extract_dir, html_file)
                 
@@ -67,17 +70,28 @@ def extract_epub_chapters(epub_path):
                     soup = BeautifulSoup(f, 'lxml')
                 
                 # Find content based on fragment ID
-                if fragment:
-                    content = soup.find(id=fragment)
+                if fragment_id:
+                    content = soup.find(id=fragment_id)
                     if content:
-                        chapter_text = [content.get_text(separator='\n', strip=True)]
-                        chapters.append((title, chapter_text))
+                        # Include all elements until next chapter start
+                        chapter_content = []
+                        current = content
+                        while current:
+                            chapter_content.append(current.get_text(separator='\n', strip=True))
+                            current = current.find_next_sibling()
+                            # Stop at next section or header
+                            if current and current.name in ['h1', 'h2', 'section']:
+                                break
+                        chapters.append((title, chapter_content))
                 else:
-                    # If no fragment, take the entire HTML content
+                    # Take full content if no fragment
                     body = soup.find('body')
                     if body:
-                        chapter_text = [p.get_text(separator='\n', strip=True) 
-                                       for p in body.find_all(['p', 'h1', 'h2', 'h3'])]
+                        chapter_text = [
+                            el.get_text(separator='\n', strip=True)
+                            for el in body.find_all(['p', 'h1', 'h2', 'h3', 'div'])
+                            if el.get_text(strip=True)
+                        ]
                         chapters.append((title, chapter_text))
     
     return chapters
@@ -122,10 +136,10 @@ if uploaded_file:
             # Create text files with titles
             for i, (title, content) in enumerate(chapters, 1):
                 filename = f"{title}.txt" if title else f"Chapter_{i}.txt"
-                # Remove invalid characters from filename
+                # Sanitize filename
                 filename = re.sub(r'[\\/*?:"<>|]', "", filename)
                 with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
-                    f.write("\n".join(content))
+                    f.write("\n\n".join(content))
             
             # Create ZIP archive
             zip_buffer = BytesIO()
