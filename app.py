@@ -25,7 +25,7 @@ def is_page_break(paragraph):
 def is_page_break_odt(paragraph):
     """Check if an ODT paragraph contains a page break"""
     for node in paragraph.childNodes:
-        if isinstance(node, text.LineBreak):
+        if hasattr(node, 'qname') and node.qname == text.LineBreak.qname:
             if node.getAttribute('type') == 'page':
                 return True
     return False
@@ -38,6 +38,7 @@ if uploaded_file:
             chapters = []
             current_chapter = []
 
+            # DOCX Processing
             if file_ext == 'docx':
                 doc = Document(uploaded_file)
                 for para in doc.paragraphs:
@@ -48,11 +49,13 @@ if uploaded_file:
                     else:
                         current_chapter.append(para.text.strip())
 
+            # ODT Processing
             elif file_ext == 'odt':
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".odt") as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
+                    tmp_path = tmp_file.name
                 
-                odt_doc = load(tmp_file.name)
+                odt_doc = load(tmp_path)
                 paragraphs = odt_doc.text.getElementsByType(text.P)
                 
                 for para in paragraphs:
@@ -62,32 +65,39 @@ if uploaded_file:
                             current_chapter = []
                     else:
                         text_content = extractText(para).strip()
-                        current_chapter.append(text_content)
+                        if text_content:  # Skip empty paragraphs
+                            current_chapter.append(text_content)
                 
-                os.unlink(tmp_file.name)
+                os.unlink(tmp_path)
 
             else:
                 st.error("Unsupported file format")
                 raise ValueError("Unsupported file format")
 
+            # Add final chapter
             if current_chapter:
                 chapters.append(current_chapter)
 
+            # Handle files with no page breaks
             if not chapters:
                 st.warning("No page breaks found! Treating as single chapter.")
                 chapters = [current_chapter]
 
+            # Create text files (excluding title/first paragraph)
             for i, chapter in enumerate(chapters, 1):
                 filename = f"Chapter_{i}.txt"
+                # Skip first paragraph if it exists
                 content = chapter[1:] if len(chapter) > 1 else []
                 with open(os.path.join(temp_dir.name, filename), "w", encoding="utf-8") as f:
                     f.write("\n".join(content))
 
+            # Create ZIP archive
             zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w') as zipf:
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(temp_dir.name):
                     for file in files:
-                        zipf.write(os.path.join(root, file), arcname=file)
+                        file_path = os.path.join(root, file)
+                        zipf.write(file_path, arcname=file)
 
             st.success(f"Split into {len(chapters)} chapters successfully!")
             st.download_button(
@@ -98,7 +108,7 @@ if uploaded_file:
             )
 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Processing error: {str(e)}")
         
         finally:
             temp_dir.cleanup()
